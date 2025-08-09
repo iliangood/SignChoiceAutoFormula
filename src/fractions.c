@@ -40,6 +40,8 @@ long long llpow(long long num, long long power)
 
 long long gcd(long long a, long long b)
 {
+	if(a == 0 || b == 0)
+		return 1;
 	a = llabs(a);
 	b = llabs(b);
 	while(max(a, b) % min(a, b))
@@ -67,7 +69,7 @@ number simplify(number num)
 number signRecovery(number num)
 {
 	num.numerator *= (num.denominator < 0) ? -1 : 1;
-	num.denominator = labs(num.denominator);
+	num.denominator = llabs(num.denominator);
 	return num;
 }
 
