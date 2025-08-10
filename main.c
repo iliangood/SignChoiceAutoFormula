@@ -122,6 +122,10 @@ size_t remove_duplicates(number** nums, size_t size)
 
 int main(int argc, char** argv)
 {
+	if(argc == 1)
+	{
+		printf("enter at least 1 number.\n example:\n ./main 1 2 3");
+	}
 	number* nums = malloc((argc-1)*sizeof(number));
 	for(int i = 1; i < argc; i++)
 	{
