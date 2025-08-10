@@ -95,6 +95,31 @@ char* formula(number* nums, size_t size)
 	return 0;
 }*/
 
+int compare(const void* a, const void* b)
+{
+	return cmpn(*(number*)a, *(number*)b);
+}
+
+size_t remove_duplicates(number** nums, size_t size)
+{
+	qsort(*nums, size, sizeof(number), compare);
+	size_t new_size = 0;
+	for(int i = 0; i < size; i++)
+	{
+		if(cmpn((*nums)[i], (*nums)[new_size]) != 0)
+		{
+			new_size++;
+			(*nums)[new_size] = (*nums)[i];
+		}
+	}
+	new_size++;
+	number* new_arr = realloc(*nums, new_size*sizeof(number));
+	if(new_arr == NULL)
+		return new_size;
+	*nums = new_arr;
+	return new_size;
+}
+
 int main(int argc, char** argv)
 {
 	number* nums = malloc((argc-1)*sizeof(number));
@@ -102,6 +127,8 @@ int main(int argc, char** argv)
 	{
 		nums[i-1] = aton(argv[i]);
 	}
-	printf(" %s\n", formula(nums, argc-1));
+	size_t new_size = remove_duplicates(&nums, argc-1);
+	printf(" %s\n", formula(nums, new_size));
+	free(nums);
 	return 0;
 }

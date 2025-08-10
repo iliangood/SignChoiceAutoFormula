@@ -144,6 +144,13 @@ bool isNegative(number num)
 	return num.numerator < 0;
 }
 
+int cmpn(number a, number b)
+{
+	a.numerator *= b.denominator;
+	b.numerator *= a.denominator;
+	return (a.numerator >  b.numerator) - (a.numerator < b.numerator);
+}
+
 char* ntoda(number num) {
 	num = fractionRecovery(num);
 	if (num.denominator == 0) {

@@ -14,6 +14,7 @@ number divn(number a, number b);
 number absn(number num);
 number iton(long long num);
 bool isNegative(number num);
+int cmpn(number a, number b);
 char* ntoda(number num);
 char* ntosfa(number num);
 char* ntofwi(number num);
