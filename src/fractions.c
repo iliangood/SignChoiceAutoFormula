@@ -238,7 +238,6 @@ char* ntofa(number num)
 {
 	num = fractionRecovery(num);
 	long long integer_part = num.numerator / num.denominator;
-	char* str = malloc(60);
 	if(integer_part)
 		return ntofwi(num);
 	return ntosfa(num);
