@@ -1,6 +1,6 @@
 #if !defined(FRACTIONS_H)
 #define FRACTIONS_H
-#include "stdbool.h"
+#include <stdbool.h>
 long long gcd(long long a, long long b);
 typedef struct number
 {
