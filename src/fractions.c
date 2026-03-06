@@ -274,6 +274,7 @@ number aton(char* str)
 	{
 		denominator = llpow(10, strlen(dec));
 		numerator = atoi(dec) + integer_part*denominator;
+		free(dec);
 		return fractionRecovery((number){numerator, denominator});
 	}
 	free(dec);
