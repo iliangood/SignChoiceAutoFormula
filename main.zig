@@ -27,20 +27,20 @@ test "getCharsN function" {
     try testing.expectEqual(6, getCharsN(i32, -12413));
 }
 
-fn formula(nums: []const c.number, calc_allocator: anytype, res_allocator: anytype) ![*:0]u8 {
+fn formula(nums: []const c.number) ?[*:0]u8 {
     if (nums.len == 0) {
-        std.mem.allo
-        return empty;
+        return null;
     }
     if (nums.len == 1) {
         return c.ntoa(nums[0]);
     }
+    return null;
 }
 
 test "formula function" {
     const testing = std.testing;
     const arr1 = [_]c.number{c.maken(1, 1)};
-    try testing.expectEqual("1", try formula(&arr1));
+    try testing.expectEqual("1", formula(&arr1));
 }
 
 pub fn main() void {
