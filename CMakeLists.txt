@@ -1,7 +1,0 @@
-cmake_minimum_required(VERSION 3.28.3)
-project(testmath)
-set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -g -O2")
-include_directories(include )
-add_library(fractions STATIC ./src/fractions.c )
-add_executable(main main.c)
-target_link_libraries(main PRIVATE fractions)
