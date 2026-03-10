@@ -20,5 +20,5 @@ char *ntosfa(number num);
 char *ntofwi(number num);
 char *ntifa(number num);
 char *ntoa(number num);
-number aton(char *num);
+number aton(const char *num);
 #endif

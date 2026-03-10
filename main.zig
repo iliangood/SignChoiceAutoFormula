@@ -113,17 +113,20 @@ test "formula function" {
     }
 }
 
-fn num_less(_: @TypeOf(.{}), a: c.number, b: c.number) bool {
+fn num_less(_: void, a: c.number, b: c.number) bool {
     return c.cmpn(a, b) == -1;
 }
+fn num_eq(a: c.number, b: c.number) bool {
+    return c.cmpn(a,b) == 0;
+}
 
-fn remove_duplicates(T: type, nums: []T, comptime lessThenFn: fn (void, T, T) bool) []T {
+fn remove_duplicates(T: type, nums: []T, comptime lessThenFn: fn (void, T, T) bool, equalFn: fn (T, T) bool) []T {
     if (nums.len < 2)
         return nums;
     std.mem.sort(T, nums, {}, lessThenFn);
     var i: usize = 0;
     for (nums[1..]) |*num| {
-        if (num.* != nums[i]) {
+        if (!equalFn(num.*, nums[i])) {
             i += 1;
             nums[i] = num.*;
         }
@@ -134,13 +137,16 @@ fn remove_duplicates(T: type, nums: []T, comptime lessThenFn: fn (void, T, T) bo
 fn lessThan_u8(_: void, lhs: u8, rhs: u8) bool {
     return lhs < rhs;
 }
+fn eq_u8(a: u8, b: u8) bool {
+    return a == b;
+}
 
 test "remove_duplicates - basic" {
     const testing = std.testing;
     {
         var arr = [_]u8{ 1, 1, 43, 34, 43 };
         const expected = [_]u8{ 1, 34, 43 };
-        try testing.expectEqualSlices(u8, &expected, remove_duplicates(u8, &arr, lessThan_u8));
+        try testing.expectEqualSlices(u8, &expected, remove_duplicates(u8, &arr, lessThan_u8, eq_u8));
     }
 }
 
@@ -148,10 +154,10 @@ test "remove_duplicates - empty and single element" {
     const testing = std.testing;
 
     var empty = [_]u8{};
-    try testing.expectEqualSlices(u8, &[_]u8{}, remove_duplicates(u8, &empty, lessThan_u8));
+    try testing.expectEqualSlices(u8, &[_]u8{}, remove_duplicates(u8, &empty, lessThan_u8, eq_u8));
 
     var single = [_]u8{5};
-    try testing.expectEqualSlices(u8, &[_]u8{5}, remove_duplicates(u8, &single, lessThan_u8));
+    try testing.expectEqualSlices(u8, &[_]u8{5}, remove_duplicates(u8, &single, lessThan_u8, eq_u8));
 }
 
 test "remove_duplicates - all identical elements" {
@@ -159,7 +165,7 @@ test "remove_duplicates - all identical elements" {
 
     var identical = [_]u8{ 10, 10, 10, 10 };
     const expected = [_]u8{10};
-    try testing.expectEqualSlices(u8, &expected, remove_duplicates(u8, &identical, lessThan_u8));
+    try testing.expectEqualSlices(u8, &expected, remove_duplicates(u8, &identical, lessThan_u8, eq_u8));
 }
 
 test "remove_duplicates - already sorted and unique" {
@@ -167,7 +173,7 @@ test "remove_duplicates - already sorted and unique" {
 
     var sorted = [_]u8{ 1, 2, 3, 4, 5 };
     const expected = [_]u8{ 1, 2, 3, 4, 5 };
-    try testing.expectEqualSlices(u8, &expected, remove_duplicates(u8, &sorted, lessThan_u8));
+    try testing.expectEqualSlices(u8, &expected, remove_duplicates(u8, &sorted, lessThan_u8, eq_u8));
 }
 
 test "remove_duplicates - large range and unsorted" {
@@ -175,14 +181,29 @@ test "remove_duplicates - large range and unsorted" {
 
     var arr = [_]u8{ 100, 2, 100, 2, 1, 50, 50, 1 };
     const expected = [_]u8{ 1, 2, 50, 100 };
-    try testing.expectEqualSlices(u8, &expected, remove_duplicates(u8, &arr, lessThan_u8));
+    try testing.expectEqualSlices(u8, &expected, remove_duplicates(u8, &arr, lessThan_u8, eq_u8));
 }
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
-    const arr1 = [_]c.number{c.maken(1, 3)};
-    std.debug.print("{s}\n", .{(try formula(&arr1, allocator)).?});
+pub fn main(init: std.process.Init) !void {
+    // var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    // const allocator = gpa.allocator();
+    // defer _ = gpa.deinit();
+    const allocator = std.heap.c_allocator;
+    const io = init.io;
+    var stdout_writer = std.Io.File.stdout().writer(io, &.{});
+    const stdout = &stdout_writer.interface;
+
+    var args = try init.minimal.args.toSlice(allocator);
+    if (args.len == 1) {
+        try stdout.print("enter at least 1 number.\n example:\n ./main 1 2 3\n", .{});
+        return;
+    }
+    const nums = try allocator.alloc(c.number, args.len-1);
+    for (args[1..], nums) |arg, *num| {
+        num.* =  c.aton(arg);
+    }
+
+    try stdout.print("{s}", .{(try formula_mut(allocator, remove_duplicates(c.number, nums, num_less, num_eq))).?});
+    // std.debug.print("{s}\n", .{(try formula(&arr1, allocator)).?});
     // std.debug.print("{}\n", .{getCharsN(u32, 17)});
 }

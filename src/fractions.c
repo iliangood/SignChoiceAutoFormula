@@ -234,7 +234,7 @@ char *ntoa(number num) {
   return ntofa(num);
 }
 
-number aton(char *str) {
+number aton(const char *str) {
   if (str == NULL)
     return (number){0, 0};
   long long integer_part, numerator, denominator;
