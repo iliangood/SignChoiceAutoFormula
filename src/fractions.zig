@@ -1,5 +1,6 @@
 const std = @import("std");
 const math = std.math;
+
 const Number = struct {
     numerator: i64,
     denominator: u64,
@@ -14,23 +15,27 @@ const Number = struct {
         res.simplify_inplace();
         return res;
     }
-    pub fn isCorrect(self: *Number) bool {
+    pub fn isCorrect(self: *const Number) bool {
         return self.denominator != 0;
+    }
+    pub fn isNegative(self: *const Number) bool {
+        return self.numerator < 0;
     }
     pub fn simplify_inplace(self: *Number) void {
         const greatest_common_diviser = math.gcd(@as(u64, @abs(self.numerator)), self.denominator);
         self.numerator = @divExact(self.numerator, @as(i64, @intCast(greatest_common_diviser)));
         self.denominator /= greatest_common_diviser;
     }
-    pub fn simplify(self: Number) Number {
+    pub fn simplify(self_: Number) Number {
+        var self = self_;
         self.simplify_inplace();
         return self;
     }
     pub fn add_inplace(self: *Number, other: *const Number) void {
-        const least_common_multiplier = math.lcm(self.denominator, other.denominator);
-        self.numerator *= @intCast(least_common_multiplier / self.denominator);
-        self.numerator += @divExact(other.numerator * @as(i64, @intCast(least_common_multiplier)), @as(i64, @intCast(other.denominator)));
-        self.denominator = least_common_multiplier;
+        self.numerator *= @intCast(other.denominator);
+        self.numerator += other.numerator * @as(i64, @intCast(self.denominator));
+        self.denominator *= other.denominator;
+        self.simplify_inplace();
     }
     pub fn add(self_: Number, other: *const Number) Number {
         var self = self_;
@@ -38,10 +43,10 @@ const Number = struct {
         return self;
     }
     pub fn sub_inplace(self: *Number, other: *const Number) void {
-        const least_common_multiplier = math.lcm(self.denominator, other.denominator);
-        self.numerator *= @as(i64, @intCast(least_common_multiplier / self.denominator));
-        self.numerator -= @divExact(other.numerator * @as(i64, @intCast(least_common_multiplier)), @as(i64, @intCast(other.denominator)));
-        self.denominator = least_common_multiplier;
+        self.numerator *= @intCast(other.denominator);
+        self.numerator -= other.numerator * @as(i64, @intCast(self.denominator));
+        self.denominator *= other.denominator;
+        self.simplify_inplace();
     }
     pub fn sub(self_: Number, other: *const Number) Number {
         var self = self_;
@@ -73,7 +78,25 @@ const Number = struct {
         self.div_inplace(other);
         return self;
     }
+    pub fn cmp(a: *const Number, b: *const Number) math.Order {
+        return math.order(a.numerator * @as(i64, @intCast(b.denominator)), b.numerator * @as(i64, @intCast(a.denominator)));
+    }
+    pub fn try_to_decimal(self: *const Number) !?[:0]u8 {
+        var num = self.*;
+        if (!isDecimal(self.denominator)) {
+            return null;
+        }
+        const is_negative = num.numerator < 0;
+        num.numerator = @abs(num.numerator);
+    }
 };
+
+fn isDecimal(num_: u64) bool {
+    var num = num_;
+    while (num % 2 == 0) : (num /= 2) {}
+    while (num % 2 == 0) : (num /= 2) {}
+    return num == 1;
+}
 
 const testing = std.testing;
 
@@ -145,8 +168,8 @@ test "sub_inplace basic subtraction" {
 
     a.sub_inplace(&b);
 
-    try testing.expectEqual(@as(i64, 2), a.numerator);
-    try testing.expectEqual(@as(u64, 4), a.denominator);
+    try testing.expectEqual(@as(i64, 1), a.numerator);
+    try testing.expectEqual(@as(u64, 2), a.denominator);
 }
 
 test "sub works (non inplace)" {
@@ -155,8 +178,8 @@ test "sub works (non inplace)" {
 
     const result = a.sub(&b);
 
-    try testing.expectEqual(@as(i64, 4), result.numerator);
-    try testing.expectEqual(@as(u64, 6), result.denominator);
+    try testing.expectEqual(@as(i64, 2), result.numerator);
+    try testing.expectEqual(@as(u64, 3), result.denominator);
 }
 
 test "mul_inplace basic multiplication" {
@@ -226,4 +249,22 @@ test "large Numbers simplify correctly" {
 
     try testing.expectEqual(@as(i64, 1), a.numerator);
     try testing.expectEqual(@as(u64, 2), a.denominator);
+}
+
+test "cmp basic test 1" {
+    const a = Number.make(8, 6);
+    const b = Number.make(7, 5);
+    try testing.expectEqual(math.Order.lt, a.cmp(&b));
+}
+
+test "cmp basic test 2" {
+    const a = Number.make(1, 2);
+    const b = Number.make(1, 2);
+    try testing.expectEqual(math.Order.eq, a.cmp(&b));
+}
+
+test "cmp basic test 3" {
+    const a = Number.make(7, 6);
+    const b = Number.make(6, 7);
+    try testing.expectEqual(math.Order.gt, a.cmp(&b));
 }
