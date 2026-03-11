@@ -27,7 +27,21 @@ pub fn build(b: *std.Build) void {
 
     b.installArtifact(libfractions);
 
-    const main_mod = b.createModule(.{
+    const libfractions_mod_zig = b.createModule(.{
+        .root_source_file = b.path("src/fractions.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = false,
+    });
+    const libfractions_zig = b.addLibrary(.{
+        .name = "fractions_zig",
+        .linkage = .static,
+        .root_module = libfractions_mod_zig,
+    });
+
+    b.installArtifact(libfractions_zig);
+
+    const exe_mod = b.createModule(.{
         .root_source_file = b.path("main.zig"),
         .target = target,
         .optimize = optimize,
@@ -36,9 +50,8 @@ pub fn build(b: *std.Build) void {
 
     const exe = b.addExecutable(.{
         .name = "main",
-        .root_module = main_mod,
+        .root_module = exe_mod,
     });
-
 
     exe.root_module.addIncludePath(b.path("include"));
 
@@ -55,9 +68,14 @@ pub fn build(b: *std.Build) void {
 
     const tests_step = b.step("test", "run tests");
 
-    const unit_tests = b.addTest(.{
-        .root_module = main_mod,
+    const unit_tests_main = b.addTest(.{
+        .root_module = exe_mod,
     });
-    const run_unit_tests = b.addRunArtifact(unit_tests);
-    tests_step.dependOn(&run_unit_tests.step);
+    const run_unit_tests_main = b.addRunArtifact(unit_tests_main);
+    tests_step.dependOn(&run_unit_tests_main.step);
+    const unit_tests_libfractions = b.addTest(.{
+        .root_module = libfractions_mod_zig,
+    });
+    const run_unit_tests_libfractions = b.addRunArtifact(unit_tests_libfractions);
+    tests_step.dependOn(&run_unit_tests_libfractions.step);
 }
