@@ -2,12 +2,14 @@ const std = @import("std");
 const math = std.math;
 
 const Number = struct {
-    numerator: i64,
+    numerator: u64, //TODO: заменить на u64 и вынести isNegative в отдельную переменную
     denominator: u64,
+    isNegative: bool,
     pub fn make(numerator: i64, denominator: u64) Number {
         return Number{
-            .numerator = numerator,
+            .numerator = @intCast(@abs(numerator)),
             .denominator = denominator,
+            .isNegative = numerator < 0,
         };
     }
     pub fn make_simplify(numerator: i64, denominator: u64) Number {
@@ -18,12 +20,9 @@ const Number = struct {
     pub fn isCorrect(self: *const Number) bool {
         return self.denominator != 0;
     }
-    pub fn isNegative(self: *const Number) bool {
-        return self.numerator < 0;
-    }
     pub fn simplify_inplace(self: *Number) void {
-        const greatest_common_diviser = math.gcd(@as(u64, @abs(self.numerator)), self.denominator);
-        self.numerator = @divExact(self.numerator, @as(i64, @intCast(greatest_common_diviser)));
+        const greatest_common_diviser = math.gcd(self.numerator, self.denominator);
+        self.numerator = self.numerator / greatest_common_diviser;
         self.denominator /= greatest_common_diviser;
     }
     pub fn simplify(self_: Number) Number {
@@ -81,19 +80,40 @@ const Number = struct {
     pub fn cmp(a: *const Number, b: *const Number) math.Order {
         return math.order(a.numerator * @as(i64, @intCast(b.denominator)), b.numerator * @as(i64, @intCast(a.denominator)));
     }
-    pub fn try_to_decimal(self: *const Number) !?[:0]u8 {
-        var num = self.*;
-        if (!isDecimal(self.denominator)) {
-            return null;
-        }
-        const is_negative = num.numerator < 0;
-        num.numerator = @abs(num.numerator);
+    pub fn format(self: Number, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype,) !void {
+
     }
+    pub fn to_standart_string(self: *const Number, writer: anytype) !void {
+
+    }
+    // pub fn try_to_decimal(self: *const Number, allocator: std.mem.Allocator) !?[:0]u8 {
+    //     if (self.denominator == 1) {
+    //         std.fmt.allocPrintSentinel(allocator, "{}", .{num.numerator});
+    //     }
+    //     var num = self.*;
+    //     const is_negative = num.numerator < 0;
+    //     num.numerator = @abs(num.numerator);
+    //     const twos = countMultiplier(&num.denominator, 2);
+    //     const fives = countMultiplier(&num.denominator, 5);
+    //     if (num.denominator != 1) {
+    //         return null;
+    //     }
+    //     const decimal_places = @max(twos, fives);
+    //     std.fmt.allocPrintSentinel(allocator, "{}")
+    // }
 };
+
+fn countMultiplier(num: *u64, multiplier: u64) u64 {
+    var res = 0;
+    while (num.* % 2 == 0) : (num.* /= multiplier) {
+        res += 1;
+    }
+    return res;
+}
 
 fn isDecimal(num_: u64) bool {
     var num = num_;
-    while (num % 2 == 0) : (num /= 2) {}
+    countMultiplier(num, 5) {}
     while (num % 2 == 0) : (num /= 2) {}
     return num == 1;
 }
