@@ -78,51 +78,38 @@ const Number = struct {
     pub fn cmp(a: *const Number, b: *const Number) math.Order {
         return math.order(a.numerator * @as(i64, @intCast(b.denominator)), b.numerator * @as(i64, @intCast(a.denominator)));
     }
-    // pub fn format(num: Number, writer: *std.Io.writer, comptime fmt: []const u8) std.Io.Writer.Error!void { // это игнорирует
-    //     std.debug.print("format", .{});
-    //     if (std.mem.eql(u8, fmt, "s")) {
-    //         try num.standart_print(writer);
-    //     } else {
-    //         @compileError("unkown format:" ++ fmt);
-    //     }
-    // }
-    pub fn format( // это игнорирует
-        self: Number,
-        comptime fmt: []const u8,
-        options: std.fmt.FormatOptions,
-        writer: anytype,
-    ) !void {
-        _ = options; // Игнорируем опции, если не нужны
-
-        if (std.mem.eql(u8, fmt, "")) {
+    pub fn format(self: Number, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        (try self.to_decimal(writer)) orelse
             try self.standart_print(writer);
-        } else {
-            @compileError("unkown format:" ++ fmt);
-        }
     }
-    pub fn standart_print(self: *const Number, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+
+    fn standart_print(self: *const Number, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         try writer.print("{}/{}", .{ self.numerator, self.denominator });
     }
-    // pub fn try_to_decimal(self: *const Number, allocator: std.mem.Allocator) !?[:0]u8 {
-    //     if (self.denominator == 1) {
-    //         std.fmt.allocPrintSentinel(allocator, "{}", .{num.numerator});
-    //     }
-    //     var num = self.*;
-    //     const is_negative = num.numerator < 0;
-    //     num.numerator = @abs(num.numerator);
-    //     const twos = countMultiplier(&num.denominator, 2);
-    //     const fives = countMultiplier(&num.denominator, 5);
-    //     if (num.denominator != 1) {
-    //         return null;
-    //     }
-    //     const decimal_places = @max(twos, fives);
-    //     std.fmt.allocPrintSentinel(allocator, "{}")
-    // }
+
+    fn to_decimal(self: *const Number, writer: *std.Io.Writer) std.Io.Writer.Error!?void {
+        if (self.denominator == 1) {
+            try writer.print("{}", .{self.numerator});
+        }
+        var denominator = self.denominator;
+        const is_negative = self.numerator < 0;
+        const numerator = @as(u64, @intCast(@abs(self.numerator)));
+        const twos = countMultiplier(&denominator, 2);
+        const fives = countMultiplier(&denominator, 5);
+        std.debug.print("denominator: {}", .{denominator});
+        if (denominator != 1) {
+            return null;
+        }
+        const decimal_places = @max(twos, fives); // TODO: Переделать
+        const whole_part = numerator / self.denominator;
+        const dec_part = numerator % self.denominator;
+        try writer.print("{s}{}.{:0>[3]}", .{ if (is_negative) "-" else "", whole_part, dec_part, decimal_places });
+    }
 };
 
 fn countMultiplier(num: *u64, multiplier: u64) u64 {
-    var res = 0;
-    while (num.* % 2 == 0) : (num.* /= multiplier) {
+    var res: u64 = 0;
+    while (num.* % multiplier == 0) : (num.* /= multiplier) {
         res += 1;
     }
     return res;
@@ -309,9 +296,23 @@ test "cmp basic test 3" {
 }
 
 test "format basic test" {
-    const allocator = std.heap.c_allocator;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer std.debug.assert(gpa.deinit() == .ok);
+    const allocator = gpa.allocator();
+
     const num = Number.make(2, 3);
-    const s = try std.fmt.allocPrint(allocator, "{}", .{num});
+    const s = try std.fmt.allocPrint(allocator, "{f}", .{num});
     defer allocator.free(s);
     try testing.expectEqualStrings("2/3", s);
+}
+
+test "format decimal" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer std.debug.assert(gpa.deinit() == .ok);
+    const allocator = gpa.allocator();
+
+    const num = Number.make(4, 5);
+    const s = try std.fmt.allocPrint(allocator, "{f}", .{num});
+    defer allocator.free(s);
+    try testing.expectEqualStrings("0.8", s);
 }
