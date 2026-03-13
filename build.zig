@@ -31,7 +31,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/fractions.zig"),
         .target = target,
         .optimize = optimize,
-        .link_libc = false,
+        .link_libc = true,
     });
     const libfractions_zig = b.addLibrary(.{
         .name = "fractions_zig",

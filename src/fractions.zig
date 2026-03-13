@@ -78,13 +78,29 @@ const Number = struct {
     pub fn cmp(a: *const Number, b: *const Number) math.Order {
         return math.order(a.numerator * @as(i64, @intCast(b.denominator)), b.numerator * @as(i64, @intCast(a.denominator)));
     }
-    // pub fn format(
-    //     self: Number,
-    //     comptime fmt: []const u8,
-    //     options: std.fmt.FormatOptions,
-    //     writer: *std.Io.writer,
-    // ) std.Io.Writer.Error!void {}
-    pub fn try_standart_print(self: *const Number, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+    // pub fn format(num: Number, writer: *std.Io.writer, comptime fmt: []const u8) std.Io.Writer.Error!void { // это игнорирует
+    //     std.debug.print("format", .{});
+    //     if (std.mem.eql(u8, fmt, "s")) {
+    //         try num.standart_print(writer);
+    //     } else {
+    //         @compileError("unkown format:" ++ fmt);
+    //     }
+    // }
+    pub fn format( // это игнорирует
+        self: Number,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        _ = options; // Игнорируем опции, если не нужны
+
+        if (std.mem.eql(u8, fmt, "")) {
+            try self.standart_print(writer);
+        } else {
+            @compileError("unkown format:" ++ fmt);
+        }
+    }
+    pub fn standart_print(self: *const Number, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         try writer.print("{}/{}", .{ self.numerator, self.denominator });
     }
     // pub fn try_to_decimal(self: *const Number, allocator: std.mem.Allocator) !?[:0]u8 {
@@ -290,4 +306,12 @@ test "cmp basic test 3" {
     const a = Number.make(7, 6);
     const b = Number.make(6, 7);
     try testing.expectEqual(math.Order.gt, a.cmp(&b));
+}
+
+test "format basic test" {
+    const allocator = std.heap.c_allocator;
+    const num = Number.make(2, 3);
+    const s = try std.fmt.allocPrint(allocator, "{}", .{num});
+    defer allocator.free(s);
+    try testing.expectEqualStrings("2/3", s);
 }
