@@ -2,14 +2,12 @@ const std = @import("std");
 const math = std.math;
 
 const Number = struct {
-    numerator: u64, //TODO: заменить на u64 и вынести isNegative в отдельную переменную
+    numerator: i64,
     denominator: u64,
-    isNegative: bool,
     pub fn make(numerator: i64, denominator: u64) Number {
         return Number{
-            .numerator = @intCast(@abs(numerator)),
+            .numerator = numerator,
             .denominator = denominator,
-            .isNegative = numerator < 0,
         };
     }
     pub fn make_simplify(numerator: i64, denominator: u64) Number {
@@ -17,12 +15,12 @@ const Number = struct {
         res.simplify_inplace();
         return res;
     }
-    pub fn isCorrect(self: *const Number) bool {
+    pub fn isValid(self: *const Number) bool {
         return self.denominator != 0;
     }
     pub fn simplify_inplace(self: *Number) void {
-        const greatest_common_diviser = math.gcd(self.numerator, self.denominator);
-        self.numerator = self.numerator / greatest_common_diviser;
+        const greatest_common_diviser = math.gcd(@as(u64, @intCast(@abs(self.numerator))), self.denominator);
+        self.numerator = @divExact(self.numerator, @as(i64, @intCast(greatest_common_diviser)));
         self.denominator /= greatest_common_diviser;
     }
     pub fn simplify(self_: Number) Number {
@@ -80,11 +78,14 @@ const Number = struct {
     pub fn cmp(a: *const Number, b: *const Number) math.Order {
         return math.order(a.numerator * @as(i64, @intCast(b.denominator)), b.numerator * @as(i64, @intCast(a.denominator)));
     }
-    pub fn format(self: Number, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype,) !void {
-
-    }
-    pub fn to_standart_string(self: *const Number, writer: anytype) !void {
-
+    // pub fn format(
+    //     self: Number,
+    //     comptime fmt: []const u8,
+    //     options: std.fmt.FormatOptions,
+    //     writer: *std.Io.writer,
+    // ) std.Io.Writer.Error!void {}
+    pub fn try_standart_print(self: *const Number, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        try writer.print("{}/{}", .{ self.numerator, self.denominator });
     }
     // pub fn try_to_decimal(self: *const Number, allocator: std.mem.Allocator) !?[:0]u8 {
     //     if (self.denominator == 1) {
@@ -113,9 +114,11 @@ fn countMultiplier(num: *u64, multiplier: u64) u64 {
 
 fn isDecimal(num_: u64) bool {
     var num = num_;
-    countMultiplier(num, 5) {}
-    while (num % 2 == 0) : (num /= 2) {}
-    return num == 1;
+    if (num == 0) {
+        unreachable; // Предполагается использование для знаменателя, который != 0
+    }
+    countMultiplier(&num, 5);
+    return num & (num - 1) == 0;
 }
 
 const testing = std.testing;
@@ -127,12 +130,12 @@ test "make creates correct Number" {
     try testing.expectEqual(@as(u64, 4), n.denominator);
 }
 
-test "isCorrect works" {
+test "isValid works" {
     var n = Number.make(1, 2);
-    try testing.expect(n.isCorrect());
+    try testing.expect(n.isValid());
 
     n.denominator = 0;
-    try testing.expect(!n.isCorrect());
+    try testing.expect(!n.isValid());
 }
 
 test "simplify reduces fraction" {
