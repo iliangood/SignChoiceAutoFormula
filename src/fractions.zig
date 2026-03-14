@@ -102,7 +102,7 @@ const Number = struct {
         }
         const decimal_places = @max(twos, fives); // TODO: Переделать
         const whole_part = numerator / self.denominator;
-        const dec_part = numerator % self.denominator;
+        const dec_part = (numerator % self.denominator) * if(twos > fives) math.powInt(u64, 5, twos - fives) catch|_| return null else math.powInt(u64, 2, fives - twos) catch |_| return null; 
         try writer.print("{s}{}.{:0>[3]}", .{ if (is_negative) "-" else "", whole_part, dec_part, decimal_places });
     }
 };
