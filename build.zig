@@ -4,29 +4,6 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const libfractions_mod = b.createModule(.{
-        .root_source_file = null,
-        .target = target,
-        .optimize = optimize,
-        .link_libc = true,
-    });
-
-    const libfractions = b.addLibrary(.{
-        .name = "fractions",
-        .linkage = .static,
-        .root_module = libfractions_mod,
-    });
-    libfractions.root_module.addCSourceFiles(.{ .files = &.{
-        "src/fractions.c",
-    }, .flags = &.{
-        "-Wall",
-        "-Wextra",
-        "-g",
-    } });
-    libfractions.root_module.addIncludePath(b.path("include"));
-
-    b.installArtifact(libfractions);
-
     const libfractions_mod_zig = b.createModule(.{
         .root_source_file = b.path("src/fractions.zig"),
         .target = target,
@@ -53,10 +30,10 @@ pub fn build(b: *std.Build) void {
         .root_module = exe_mod,
     });
 
-    exe.root_module.addIncludePath(b.path("include"));
+    // exe.root_module.addIncludePath(b.path("include"));
 
-    exe.root_module.linkLibrary(libfractions);
     exe.root_module.linkLibrary(libfractions_zig);
+    exe.root_module.addImport("fractions", libfractions_zig.root_module);
 
     b.installArtifact(exe);
 

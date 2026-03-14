@@ -1,5 +1,5 @@
 const std = @import("std");
-const Number = @import("fractions_zig").Number;
+const Number = @import("fractions").Number;
 const c = @cImport({
     @cInclude("fractions.h");
     @cInclude("malloc.h");
@@ -29,55 +29,54 @@ test "getCharsN function" {
     try testing.expectEqual(6, getCharsN(i32, -12413));
 }
 
-fn formula_small(nums: []const c.number) !?[*:0]u8 {
+fn formula_small(allocator: std.mem.Allocator, nums: []const Number) !?[:0]u8 {
     return switch (nums.len) {
         0 => null,
-        1 => @as(?[*:0]u8, c.ntoa(nums[0])) orelse return error.OutOfMemory,
+        1 => try std.fmt.allocPrintSentinel(allocator, "{f}", .{nums[0]}, 0),
         else => unreachable,
     };
 }
 
-fn formula_mut(allocator: std.mem.Allocator, nums: []c.number) !?[*:0]u8 {
+fn formula_mut(allocator: std.mem.Allocator, nums: []Number) !?[:0]u8 {
     if (nums.len < 2) {
-        return try formula_small(nums);
+        return try formula_small(allocator, nums);
     }
     if (nums.len == 2) {
-        const divider = c.maken(2, 1);
-        const num1 = @as(?[*:0]u8, c.ntoa(c.divn(c.addn(nums[0], nums[1]), divider))) orelse return error.OutOfMemory;
-        defer allocator.free(std.mem.span(num1));
-        const num2 = @as(?[*:0]u8, c.ntoa(c.absn(c.divn(c.subn(nums[1], nums[0]), divider)))) orelse return error.OutOfMemory;
-        defer allocator.free(std.mem.span(num2));
-        return try std.fmt.allocPrintSentinel(allocator, "{s} ± {s}", .{ num1, num2 }, 0);
+        const divider = Number.make(2, 1);
+        const num1 = nums[0].add(&nums[1]).div(&divider);
+        const num2 = (nums[1].sub(&nums[0])).div(&divider);
+        return try std.fmt.allocPrintSentinel(allocator, "{f} ± {f}", .{ num1, num2 }, 0);
     }
     const last_num = nums[nums.len - 1];
     for (nums) |*num|
-        num.* = c.subn(num.*, last_num);
+        num.sub_inplace(&last_num);
     const recurse = (try formula_mut(allocator, nums[0 .. nums.len - 1])).?;
-    defer allocator.free(std.mem.span(recurse));
-    const num = @as(?[*:0]u8, c.ntoa(c.absn(last_num))) orelse return error.OutOfMemory;
-    defer allocator.free(std.mem.span(num));
-    const sign: u8 = if (c.isNegative(last_num)) '-' else '+';
-    return try std.fmt.allocPrintSentinel(allocator, "(0.5 ± 0.5)*({s}){c}{s}", .{
+    defer allocator.free(recurse);
+    const num = last_num.abs();
+    const sign = if (last_num.is_negative()) "" else "+";
+    // _ = sign;
+    // _ = num;
+    return try std.fmt.allocPrintSentinel(allocator, "(0.5 ± 0.5)*({s}){s}{f}", .{
         recurse,
         sign,
         num,
     }, 0);
 }
 
-fn formula(nums: []const c.number, allocator: std.mem.Allocator) !?[*:0]u8 {
+fn formula(nums: []const Number, allocator: std.mem.Allocator) !?[*:0]u8 {
     if (nums.len < 2) {
-        return try formula_small(nums);
+        return try formula_small(allocator, nums);
     }
     const mut_nums = try allocator.dupe(c.number, nums);
     defer allocator.free(mut_nums);
     return formula_mut(allocator, mut_nums);
 }
 
-fn test_formula_mut(allocator: std.mem.Allocator, expected: [:0]const u8, nums: []c.number) !void {
+fn test_formula_mut(allocator: std.mem.Allocator, expected: [:0]const u8, nums: []Number) !void {
     const testing = std.testing;
     const result = try formula_mut(allocator, nums) orelse return error.TestUnexpectedNull;
-    defer allocator.free(std.mem.span(result));
-    try testing.expectEqualStrings(expected, std.mem.span(result));
+    defer allocator.free(result);
+    try testing.expectEqualStrings(expected, result);
 }
 
 test "formula function" {
@@ -86,39 +85,39 @@ test "formula function" {
     // var allocator = gpa.allocator(); // Временно не используется, так как в c коде используется mallo
     const allocator = std.heap.c_allocator;
     {
-        var arr = [_]c.number{};
+        var arr = [_]Number{};
         try testing.expectEqual(null, try formula_mut(allocator, &arr));
     }
     {
-        var arr = [_]c.number{c.maken(2, 3)};
+        var arr = [_]Number{Number.make(2, 3)};
         try test_formula_mut(allocator, "2/3", &arr);
     }
     {
-        var arr = [_]c.number{c.maken(3, 2)};
+        var arr = [_]Number{Number.make(3, 2)};
         try test_formula_mut(allocator, "1.5", &arr);
     }
     {
-        var arr = [_]c.number{
-            c.maken(1, 1),
-            c.maken(2, 1),
+        var arr = [_]Number{
+            Number.make(1, 1),
+            Number.make(2, 1),
         };
         try test_formula_mut(allocator, "1.5 ± 0.5", &arr);
     }
     {
-        var arr = [_]c.number{
-            c.maken(1, 1),
-            c.maken(2, 1),
-            c.maken(3, 1),
+        var arr = [_]Number{
+            Number.make(1, 1),
+            Number.make(2, 1),
+            Number.make(3, 1),
         };
         try test_formula_mut(allocator, "(0.5 ± 0.5)*(-1.5 ± 0.5)+3", &arr);
     }
 }
 
-fn num_less(_: void, a: c.number, b: c.number) bool {
-    return c.cmpn(a, b) == -1;
+fn num_less(_: void, a: Number, b: Number) bool {
+    return a.cmp(&b) == .lt;
 }
-fn num_eq(a: c.number, b: c.number) bool {
-    return c.cmpn(a, b) == 0;
+fn num_eq(a: Number, b: Number) bool {
+    return a.cmp(&b) == .eq;
 }
 
 fn remove_duplicates(T: type, nums: []T, comptime lessThenFn: fn (void, T, T) bool, equalFn: fn (T, T) bool) []T {
@@ -199,12 +198,17 @@ pub fn main(init: std.process.Init) !void {
         try stdout.print("enter at least 1 number.\n example:\n ./main 1 2 3\n", .{});
         return;
     }
-    const nums = try allocator.alloc(c.number, args.len - 1);
+    const nums = try allocator.alloc(Number, args.len - 1);
     for (args[1..], nums) |arg, *num| {
-        num.* = c.aton(arg);
+        num.* = Number.parse(arg) catch |err| {
+            switch (err) {
+                Number.ParseError.FormatError, Number.ParseError.InvalidCharacter => try stdout.print("Invalid format of number: \"{s}\"", .{arg}),
+                Number.ParseError.IsEmpty => try stdout.print("Empty number", .{}),
+                Number.ParseError.Overflow, Number.ParseError.Underflow => try stdout.print("num is too long", .{}),
+            }
+            return;
+        };
     }
 
-    try stdout.print("{s}", .{(try formula_mut(allocator, remove_duplicates(c.number, nums, num_less, num_eq))).?});
-    // std.debug.print("{s}\n", .{(try formula(&arr1, allocator)).?});
-    // std.debug.print("{}\n", .{getCharsN(u32, 17)});
+    try stdout.print("{s}", .{(try formula_mut(allocator, remove_duplicates(Number, nums, num_less, num_eq))).?});
 }

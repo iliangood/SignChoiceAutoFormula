@@ -1,7 +1,7 @@
 const std = @import("std");
 const math = std.math;
 
-const Number = struct {
+pub const Number = struct {
     numerator: i64,
     denominator: u64,
     pub fn make(numerator: i64, denominator: u64) Number {
@@ -15,8 +15,11 @@ const Number = struct {
         res.simplify_inplace();
         return res;
     }
-    pub fn isValid(self: *const Number) bool {
+    pub fn is_valid(self: *const Number) bool {
         return self.denominator != 0;
+    }
+    pub fn is_negative(self: *const Number) bool {
+        return self.numerator < 0;
     }
     pub fn simplify_inplace(self: *Number) void {
         const greatest_common_diviser = math.gcd(@as(u64, @intCast(@abs(self.numerator))), self.denominator);
@@ -75,6 +78,14 @@ const Number = struct {
         self.div_inplace(other);
         return self;
     }
+    pub fn abs_inplace(self: *Number) void {
+        self.numerator = @intCast(@abs(self.numerator));
+    }
+    pub fn abs(self_: *const Number) Number {
+        var self = self_.*;
+        self.abs_inplace();
+        return self;
+    }
     pub fn cmp(a: *const Number, b: *const Number) math.Order {
         return math.order(a.numerator * @as(i64, @intCast(b.denominator)), b.numerator * @as(i64, @intCast(a.denominator)));
     }
@@ -105,7 +116,7 @@ const Number = struct {
             return;
         }
         var denominator = self.denominator;
-        const is_negative = self.numerator < 0;
+        const isNegative = self.numerator < 0;
         const numerator = @as(u64, @intCast(@abs(self.numerator)));
         const twos = countMultiplier(&denominator, 2);
         const fives = countMultiplier(&denominator, 5);
@@ -123,21 +134,21 @@ const Number = struct {
                 return null;
             };
         try writer.print("{s}{}.{[2]:0>[3]}", .{
-            if (is_negative) "-" else "",
+            if (isNegative) "-" else "",
             whole_part,
             dec_part,
             decimal_places,
         });
     }
-    pub const FormatError = error{ FormatError, IsEmpty } || std.fmt.ParseIntError || error{Underflow};
-    pub fn parse(str: []const u8) FormatError!Number {
+    pub const ParseError = error{ FormatError, IsEmpty } || std.fmt.ParseIntError || error{Underflow};
+    pub fn parse(str: []const u8) ParseError!Number {
         if (str.len == 0) {
-            return FormatError.IsEmpty;
+            return ParseError.IsEmpty;
         }
         const isNegative = str[0] == '-';
         var i: usize = @as(usize, @intFromBool(isNegative or str[0] == '+'));
         if (i == 1 and str.len == 1) {
-            return FormatError.FormatError;
+            return ParseError.FormatError;
         }
         if (str[i] == '.') {
             i += 1;
@@ -145,10 +156,10 @@ const Number = struct {
             while (i < str.len and std.ascii.isDigit(str[i])) : (i += 1) {}
             const end_dec_part = i;
             if (start_dec_part == end_dec_part) {
-                return FormatError.FormatError; // Число не должно быть пустым
+                return ParseError.FormatError; // Число не должно быть пустым
             }
             if (i != str.len) {
-                return FormatError.FormatError; // Дальше ничего не должно быть
+                return ParseError.FormatError; // Дальше ничего не должно быть
             }
             const dec_part = try std.fmt.parseUnsigned(u64, str[start_dec_part..end_dec_part], 10);
             const denominator = try std.math.powi(u64, 10, end_dec_part - start_dec_part);
@@ -160,7 +171,7 @@ const Number = struct {
         while (i < str.len and std.ascii.isDigit(str[i])) : (i += 1) {}
         const end_first_num = i;
         if (end_first_num == start_first_num) {
-            return FormatError.FormatError; // Число не должно быть пустым
+            return ParseError.FormatError; // Число не должно быть пустым
         }
         const first_num = try std.fmt.parseUnsigned(u64, str[start_first_num..end_first_num], 10);
         if (end_first_num == str.len or (str[i] == '.' and end_first_num + 1 == str.len)) {
@@ -176,13 +187,13 @@ const Number = struct {
                 while (i < str.len and std.ascii.isDigit(str[i])) : (i += 1) {}
                 const end_numerator = i;
                 if (i == str.len) {
-                    return FormatError.FormatError; // Число не может заканчиваться ' '
+                    return ParseError.FormatError; // Число не может заканчиваться ' '
                 }
                 if (start_numerator == end_numerator) {
-                    return FormatError.FormatError; // Число не может быть нулевой длины
+                    return ParseError.FormatError; // Число не может быть нулевой длины
                 }
                 if (str[i] != '/') {
-                    return FormatError.FormatError; // дальше должна идти дробная черта
+                    return ParseError.FormatError; // дальше должна идти дробная черта
                 }
                 const numerator = try std.fmt.parseUnsigned(u64, str[start_numerator..end_numerator], 10);
                 i += 1;
@@ -190,10 +201,10 @@ const Number = struct {
                 while (i < str.len and std.ascii.isDigit(str[i])) : (i += 1) {}
                 const end_denominator = i;
                 if (i != str.len) {
-                    return FormatError.FormatError; // Дальше ничего не должно быть
+                    return ParseError.FormatError; // Дальше ничего не должно быть
                 }
                 if (start_denominator == end_denominator) {
-                    return FormatError.FormatError; // Число не должно быть пустым
+                    return ParseError.FormatError; // Число не должно быть пустым
                 }
                 const denominator = try std.fmt.parseUnsigned(u64, str[start_denominator..end_denominator], 10);
                 const abs_res_numerator = @as(i64, @intCast(whole_part * denominator + numerator));
@@ -207,10 +218,10 @@ const Number = struct {
                 while (i < str.len and std.ascii.isDigit(str[i])) : (i += 1) {}
                 const end_dec_part = i;
                 if (start_dec_part == end_dec_part) {
-                    return FormatError.FormatError; // Число не должно быть пустым
+                    return ParseError.FormatError; // Число не должно быть пустым
                 }
                 if (i != str.len) {
-                    return FormatError.FormatError; // Дальше ничего не должно быть
+                    return ParseError.FormatError; // Дальше ничего не должно быть
                 }
                 const dec_part = try std.fmt.parseUnsigned(u64, str[start_dec_part..end_dec_part], 10);
                 const denominator = try std.math.powi(u64, 10, end_dec_part - start_dec_part);
@@ -225,16 +236,16 @@ const Number = struct {
                 while (i < str.len and std.ascii.isDigit(str[i])) : (i += 1) {}
                 const end_denominator = i;
                 if (start_denominator == end_denominator) {
-                    return FormatError.FormatError; // Число не должно быть пустым
+                    return ParseError.FormatError; // Число не должно быть пустым
                 }
                 if (i != str.len) {
-                    return FormatError.FormatError; // После числа ничего не должно идти
+                    return ParseError.FormatError; // После числа ничего не должно идти
                 }
                 const denominator = try std.fmt.parseUnsigned(u64, str[start_denominator..end_denominator], 10);
                 const numerator = if (isNegative) -abs_numerator else abs_numerator;
                 return Number.make_simplify(numerator, denominator);
             },
-            else => return FormatError.FormatError,
+            else => return ParseError.FormatError,
         }
         unreachable;
     }
@@ -259,10 +270,10 @@ test "make creates correct Number" {
 
 test "isValid works" {
     var n = Number.make(1, 2);
-    try testing.expect(n.isValid());
+    try testing.expect(n.is_valid());
 
     n.denominator = 0;
-    try testing.expect(!n.isValid());
+    try testing.expect(!n.is_valid());
 }
 
 test "simplify reduces fraction" {
