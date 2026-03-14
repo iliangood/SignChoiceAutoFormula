@@ -56,6 +56,7 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addIncludePath(b.path("include"));
 
     exe.root_module.linkLibrary(libfractions);
+    exe.root_module.linkLibrary(libfractions_zig);
 
     b.installArtifact(exe);
 

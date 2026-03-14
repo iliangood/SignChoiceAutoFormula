@@ -1,4 +1,5 @@
 const std = @import("std");
+const Number = @import("fractions_zig").Number;
 const c = @cImport({
     @cInclude("fractions.h");
     @cInclude("malloc.h");
@@ -117,7 +118,7 @@ fn num_less(_: void, a: c.number, b: c.number) bool {
     return c.cmpn(a, b) == -1;
 }
 fn num_eq(a: c.number, b: c.number) bool {
-    return c.cmpn(a,b) == 0;
+    return c.cmpn(a, b) == 0;
 }
 
 fn remove_duplicates(T: type, nums: []T, comptime lessThenFn: fn (void, T, T) bool, equalFn: fn (T, T) bool) []T {
@@ -198,9 +199,9 @@ pub fn main(init: std.process.Init) !void {
         try stdout.print("enter at least 1 number.\n example:\n ./main 1 2 3\n", .{});
         return;
     }
-    const nums = try allocator.alloc(c.number, args.len-1);
+    const nums = try allocator.alloc(c.number, args.len - 1);
     for (args[1..], nums) |arg, *num| {
-        num.* =  c.aton(arg);
+        num.* = c.aton(arg);
     }
 
     try stdout.print("{s}", .{(try formula_mut(allocator, remove_duplicates(c.number, nums, num_less, num_eq))).?});
