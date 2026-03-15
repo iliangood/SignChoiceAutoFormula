@@ -1,0 +1,64 @@
+name: Build Zig (master)
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        target:
+          - x86_64-linux-musl      
+          - x86_64-windows-gnu    
+          - aarch64-linux-musl
+          - x86_64-linux-gnu     
+          - x86_64-macos
+
+    runs-on: ubuntu-latest      
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Zig master
+        uses: https://codeberg.org/mlugg/setup-zig@v2
+        with:
+          version: master      
+
+      - name: Build for ${{ matrix.target }}
+        run: zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseFast
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: myprogram-${{ matrix.target }}
+          path: zig-out/bin/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: myprogram-*
+          path: releases
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: releases/**
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
