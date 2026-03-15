@@ -39,26 +39,25 @@ jobs:
 
   release:
     needs: build
-    if: github.ref_type == 'tag'
+    if: startsWith(github.ref, 'refs/tags/v')   # только при git tag v1.2.3 ...
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write   # нужно, чтобы создавать релиз
 
     steps:
-      - name: Download all artifacts
+      - name: Download all built binaries
         uses: actions/download-artifact@v4
         with:
-          pattern: myprogram-*
-          path: releases
+          pattern: myprogram-*          # или как ты назвал артефакты
+          path: artifacts
           merge-multiple: true
 
-      - name: Create GitHub Release
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: releases/**
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
+          files: artifacts/**
+          generate_release_notes: true     # автоматически берёт changelog из PR/коммитов
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-') || contains(github.ref_name, 'rc') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
