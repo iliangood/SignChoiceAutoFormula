@@ -1,8 +1,13 @@
-#include "fractions.h"
+#include <bits/time.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+#include "fractions.h"
+
+#include "config.h"
 
 int getCharsN(int number) {
   bool invertedSign = number < 0;
@@ -114,16 +119,34 @@ size_t remove_duplicates(number **nums, size_t size) {
 }
 
 int main(int argc, char **argv) {
+  struct timespec start, mid, end;
   if (argc == 1) {
     printf("enter at least 1 number.\n example:\n ./main 1 2 3");
     return 0;
   }
+  clock_gettime(CLOCK_MONOTONIC, &start);
   number *nums = malloc((argc - 1) * sizeof(number));
   for (int i = 1; i < argc; i++) {
     nums[i - 1] = aton(argv[i]);
   }
   size_t new_size = remove_duplicates(&nums, argc - 1);
-  printf(" %s\n", formula(nums, new_size));
+  clock_gettime(CLOCK_MONOTONIC, &mid);
+  char *res = formula(nums, new_size);
+  clock_gettime(CLOCK_MONOTONIC, &end);
+  printf(" %s\n", res);
+#if defined(MEASURE_TIME_ENABLED)
+  double duration =
+      (end.tv_nsec - start.tv_nsec) + (end.tv_sec - start.tv_sec) * 1e9;
+  double dur1 =
+      (mid.tv_nsec - start.tv_nsec) + (mid.tv_sec - start.tv_sec) * 1e9;
+  double dur2 = (end.tv_nsec - mid.tv_nsec) + (end.tv_sec - mid.tv_sec) * 1e9;
+  duration /= 1000;
+  dur1 /= 1000;
+  dur2 /= 1000;
+  printf("duration:%.3fus\nparse:%.3fus\nformula:%.3fus\n", duration, dur1,
+         dur2);
+#endif
   free(nums);
+  free(res);
   return 0;
 }
