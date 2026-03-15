@@ -2,10 +2,9 @@
 #define FRACTIONS_H
 #include <stdbool.h>
 long long gcd(long long a, long long b);
-typedef struct number
-{
-	long long numerator;
-	long long denominator;
+typedef struct number {
+  long long numerator;
+  long long denominator;
 } number;
 number addn(number a, number b);
 number subn(number a, number b);
@@ -15,10 +14,10 @@ number absn(number num);
 number iton(long long num);
 bool isNegative(number num);
 int cmpn(number a, number b);
-char* ntoda(number num);
-char* ntosfa(number num);
-char* ntofwi(number num);
-char* ntifa(number num);
-char* ntoa(number num);
-number aton(char* num);
+char *ntoda(number num);
+char *ntosfa(number num);
+char *ntofwi(number num);
+char *ntifa(number num);
+char *ntoa(number num);
+number aton(const char *num);
 #endif
