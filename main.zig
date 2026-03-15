@@ -30,19 +30,19 @@ fn formula_small(allocator: std.mem.Allocator, nums: []const Number) !?[:0]u8 {
     return switch (nums.len) {
         0 => null,
         1 => try std.fmt.allocPrintSentinel(allocator, "{f}", .{nums[0]}, 0),
+        2 => {
+            const divider = Number.make(2, 1);
+            const num1 = nums[0].add(&nums[1]).div(&divider);
+            const num2 = (nums[1].sub(&nums[0])).div(&divider);
+            return std.fmt.allocPrintSentinel(allocator, "{f} ± {f}", .{ num1, num2 }, 0);
+        },
         else => unreachable,
     };
 }
 
 fn formula_mut(allocator: std.mem.Allocator, nums: []Number) !?[:0]u8 {
-    if (nums.len < 2) {
+    if (nums.len < 3) {
         return try formula_small(allocator, nums);
-    }
-    if (nums.len == 2) {
-        const divider = Number.make(2, 1);
-        const num1 = nums[0].add(&nums[1]).div(&divider);
-        const num2 = (nums[1].sub(&nums[0])).div(&divider);
-        return try std.fmt.allocPrintSentinel(allocator, "{f} ± {f}", .{ num1, num2 }, 0);
     }
     const last_num = nums[nums.len - 1];
     for (nums) |*num|
@@ -57,6 +57,52 @@ fn formula_mut(allocator: std.mem.Allocator, nums: []Number) !?[:0]u8 {
         sign,
         num,
     }, 0);
+}
+// Для корректной работы массив должен быть отсортирован в неубывающем порядке
+fn formula_mut_fast(writer: *std.Io.Writer, nums: []Number) !void {
+    if (nums.len < 3) {
+        switch (nums.len) {
+            0 => {},
+            1 => try writer.print("{f}", .{nums[0]}),
+            2 => {
+                const divider = Number.makei(2);
+                try writer.print("{f} ± {f}", .{
+                    nums[0].add(&nums[1]).div(&divider),
+                    nums[1].sub(&nums[0]).div(&divider),
+                });
+            },
+            else => unreachable,
+        }
+        return;
+    }
+    {
+        var i = nums.len - 1;
+        var sum: Number = Number.make(0, 1);
+        while (i > 1) : (i -= 1) {
+            const cur = nums[i];
+            nums[i].sub_inplace(&sum);
+            sum.add_inplace(&cur);
+        }
+        const divider = Number.makei(2);
+        nums[0].sub_inplace(&sum);
+        nums[1].sub_inplace(&sum);
+        const avg = nums[0].add(&nums[1]).div(&divider);
+        nums[1].sub_inplace(&nums[0]);
+        nums[1].div_inplace(&divider);
+        nums[1].abs_inplace();
+        nums[0] = avg;
+    }
+    for (0..nums.len - 2) |_| {
+        try writer.print("(0.5 ± 0.5)*(", .{});
+    }
+    try writer.print("{f} ± {f}", .{ nums[0], nums[1] });
+    for (nums[2..]) |*num| {
+        const sign: u8 = if (num.is_negative()) '-' else '+';
+        try writer.print("){c}{f}", .{
+            sign,
+            num.abs(),
+        });
+    }
 }
 
 fn formula(nums: []const Number, allocator: std.mem.Allocator) !?[*:0]u8 {
@@ -183,11 +229,12 @@ test "remove_duplicates - large range and unsorted" {
 
 pub fn main(init: std.process.Init) !void {
     var buf: [262144]u8 = undefined;
+    var buf_writer: [262144]u8 = undefined;
+    var writer = std.Io.Writer.fixed(&buf_writer);
 
     const smp_allocator = std.heap.smp_allocator;
     // defer _ = gpa.deinit();
     // var arena = std.heap.ArenaAllocator.init(gpa_allocator);
-    // arena.allocator
     // defer arena.deinit();
     // const allocator = arena.allocator();
     // const allocator = std.heap.c_allocator;
@@ -220,8 +267,8 @@ pub fn main(init: std.process.Init) !void {
         };
     }
     const mid = std.Io.Clock.real.now(io);
-    const res = (try formula_mut(allocator, remove_duplicates(Number, nums, num_less, num_eq))).?;
-    defer allocator.free(res);
+    try formula_mut_fast(&writer, remove_duplicates(Number, nums, num_less, num_eq));
+
     const end = std.Io.Clock.real.now(io);
     if (config.measure_time) {
         const duration = std.Io.Timestamp.durationTo(start, end);
@@ -230,5 +277,5 @@ pub fn main(init: std.process.Init) !void {
         try stdout.print("elapsed:{f}\nparse:{f}\nformula:{f}\n", .{ duration, dur1, dur2 });
     }
 
-    try stdout.print("{s}\n", .{res});
+    try stdout.print("{s}\n", .{writer.buffered()});
 }

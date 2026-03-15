@@ -15,6 +15,9 @@ pub const Number = struct {
         res.simplify_inplace();
         return res;
     }
+    pub fn makei(num: i64) Number {
+        return make(num, 1);
+    }
     pub fn is_valid(self: *const Number) bool {
         return self.denominator != 0;
     }
