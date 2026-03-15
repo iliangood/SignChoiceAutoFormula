@@ -4,19 +4,19 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const libfractions_mod_zig = b.createModule(.{
-        .root_source_file = b.path("src/fractions.zig"),
-        .target = target,
-        .optimize = optimize,
-        .link_libc = true,
-    });
-    const libfractions_zig = b.addLibrary(.{
-        .name = "fractions_zig",
+    // const libfractions_mod =
+    const libfractions = b.addLibrary(.{
+        .name = "fractions",
         .linkage = .static,
-        .root_module = libfractions_mod_zig,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/fractions.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
     });
 
-    b.installArtifact(libfractions_zig);
+    b.installArtifact(libfractions);
 
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("main.zig"),
@@ -30,10 +30,13 @@ pub fn build(b: *std.Build) void {
         .root_module = exe_mod,
     });
 
-    // exe.root_module.addIncludePath(b.path("include"));
+    exe.root_module.linkLibrary(libfractions);
+    exe.root_module.addImport("fractions", libfractions.root_module);
 
-    exe.root_module.linkLibrary(libfractions_zig);
-    exe.root_module.addImport("fractions", libfractions_zig.root_module);
+    const measure_time = b.option(bool, "measure-time", "measure time") orelse false;
+    const options = b.addOptions();
+    options.addOption(bool, "measure_time", measure_time);
+    exe.root_module.addOptions("config", options);
 
     b.installArtifact(exe);
 
@@ -52,7 +55,7 @@ pub fn build(b: *std.Build) void {
     const run_unit_tests_main = b.addRunArtifact(unit_tests_main);
     tests_step.dependOn(&run_unit_tests_main.step);
     const unit_tests_libfractions = b.addTest(.{
-        .root_module = libfractions_mod_zig,
+        .root_module = libfractions.root_module,
     });
     const run_unit_tests_libfractions = b.addRunArtifact(unit_tests_libfractions);
     tests_step.dependOn(&run_unit_tests_libfractions.step);

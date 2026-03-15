@@ -1,9 +1,6 @@
 const std = @import("std");
+const config = @import("config");
 const Number = @import("fractions").Number;
-const c = @cImport({
-    @cInclude("fractions.h");
-    @cInclude("malloc.h");
-});
 
 // Считает сколко необходимо символов для записи числа в десятичной системе счисления
 fn getCharsN(T: type, num: T) u32 {
@@ -53,10 +50,9 @@ fn formula_mut(allocator: std.mem.Allocator, nums: []Number) !?[:0]u8 {
     const recurse = (try formula_mut(allocator, nums[0 .. nums.len - 1])).?;
     defer allocator.free(recurse);
     const num = last_num.abs();
-    const sign = if (last_num.is_negative()) "" else "+";
-    // _ = sign;
+    const sign: u8 = if (last_num.is_negative()) '-' else '+';
     // _ = num;
-    return try std.fmt.allocPrintSentinel(allocator, "(0.5 ± 0.5)*({s}){s}{f}", .{
+    return try std.fmt.allocPrintSentinel(allocator, "(0.5 ± 0.5)*({s}){c}{f}", .{
         recurse,
         sign,
         num,
@@ -67,7 +63,7 @@ fn formula(nums: []const Number, allocator: std.mem.Allocator) !?[*:0]u8 {
     if (nums.len < 2) {
         return try formula_small(allocator, nums);
     }
-    const mut_nums = try allocator.dupe(c.number, nums);
+    const mut_nums = try allocator.dupe(Number, nums);
     defer allocator.free(mut_nums);
     return formula_mut(allocator, mut_nums);
 }
@@ -81,9 +77,10 @@ fn test_formula_mut(allocator: std.mem.Allocator, expected: [:0]const u8, nums: 
 
 test "formula function" {
     const testing = std.testing;
-    // var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    // var allocator = gpa.allocator(); // Временно не используется, так как в c коде используется mallo
-    const allocator = std.heap.c_allocator;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+
+    const allocator = gpa.allocator(); // Временно не используется, так как в c коде используется mallo
+    // const allocator = std.heap.c_allocator;
     {
         var arr = [_]Number{};
         try testing.expectEqual(null, try formula_mut(allocator, &arr));
@@ -185,14 +182,28 @@ test "remove_duplicates - large range and unsorted" {
 }
 
 pub fn main(init: std.process.Init) !void {
-    // var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    // const allocator = gpa.allocator();
-    // defer _ = gpa.deinit();
-    const allocator = std.heap.c_allocator;
+    var buf: [262144]u8 = undefined;
+
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const gpa_allocator = gpa.allocator();
+    defer _ = gpa.deinit();
+    // var arena = std.heap.ArenaAllocator.init(gpa_allocator);
+    // arena.allocator
+    // defer arena.deinit();
+    // const allocator = arena.allocator();
+    // const allocator = std.heap.c_allocator;
+    // var
+    var fallbackAllocator = std.heap.StackFallbackAllocator(262144){
+        .buffer = buf,
+        .fallback_allocator = gpa_allocator,
+        .fixed_buffer_allocator = std.heap.FixedBufferAllocator.init(&buf),
+    };
+    const allocator = fallbackAllocator.get();
+
     const io = init.io;
     var stdout_writer = std.Io.File.stdout().writer(io, &.{});
     const stdout = &stdout_writer.interface;
-
+    const start = std.Io.Clock.real.now(io);
     var args = try init.minimal.args.toSlice(allocator);
     if (args.len == 1) {
         try stdout.print("enter at least 1 number.\n example:\n ./main 1 2 3\n", .{});
@@ -209,6 +220,16 @@ pub fn main(init: std.process.Init) !void {
             return;
         };
     }
+    const mid = std.Io.Clock.real.now(io);
+    const res = (try formula_mut(allocator, remove_duplicates(Number, nums, num_less, num_eq))).?;
+    defer allocator.free(res);
+    const end = std.Io.Clock.real.now(io);
+    if (config.measure_time) {
+        const duration = std.Io.Timestamp.durationTo(start, end);
+        const dur1 = std.Io.Timestamp.durationTo(start, mid);
+        const dur2 = std.Io.Timestamp.durationTo(mid, end);
+        try stdout.print("elapsed:{f}\nparse:{f}\nformula:{f}\n", .{ duration, dur1, dur2 });
+    }
 
-    try stdout.print("{s}", .{(try formula_mut(allocator, remove_duplicates(Number, nums, num_less, num_eq))).?});
+    try stdout.print("{s}\n", .{res});
 }
