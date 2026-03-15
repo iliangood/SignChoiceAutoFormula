@@ -133,7 +133,6 @@ int main(int argc, char **argv) {
   clock_gettime(CLOCK_MONOTONIC, &mid);
   char *res = formula(nums, new_size);
   clock_gettime(CLOCK_MONOTONIC, &end);
-  printf(" %s\n", res);
 #if defined(MEASURE_TIME_ENABLED)
   double duration =
       (end.tv_nsec - start.tv_nsec) + (end.tv_sec - start.tv_sec) * 1e9;
@@ -146,6 +145,7 @@ int main(int argc, char **argv) {
   printf("duration:%.3fus\nparse:%.3fus\nformula:%.3fus\n", duration, dur1,
          dur2);
 #endif
+  printf("%s\n", res);
   free(nums);
   free(res);
   return 0;
