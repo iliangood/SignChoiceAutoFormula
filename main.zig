@@ -184,9 +184,8 @@ test "remove_duplicates - large range and unsorted" {
 pub fn main(init: std.process.Init) !void {
     var buf: [262144]u8 = undefined;
 
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const gpa_allocator = gpa.allocator();
-    defer _ = gpa.deinit();
+    const smp_allocator = std.heap.smp_allocator;
+    // defer _ = gpa.deinit();
     // var arena = std.heap.ArenaAllocator.init(gpa_allocator);
     // arena.allocator
     // defer arena.deinit();
@@ -195,7 +194,7 @@ pub fn main(init: std.process.Init) !void {
     // var
     var fallbackAllocator = std.heap.StackFallbackAllocator(262144){
         .buffer = buf,
-        .fallback_allocator = gpa_allocator,
+        .fallback_allocator = smp_allocator,
         .fixed_buffer_allocator = std.heap.FixedBufferAllocator.init(&buf),
     };
     const allocator = fallbackAllocator.get();
