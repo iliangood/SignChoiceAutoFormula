@@ -256,27 +256,246 @@ char *ntoa(number num) {
 //   return (number){0, 0};
 // }
 
-static bool parse_u64_str(const char *s, size_t len, unsigned long long *out) {
-  if (len == 0)
-    return false;
+// static bool parse_u64_str(const char *s, size_t len, unsigned long long *out)
+// {
+//   if (len == 0)
+//     return false;
+//   unsigned long long v = 0;
+//   for (size_t i = 0; i < len; ++i) {
+//     char c = s[i];
+//     if (c < '0' || c > '9')
+//       return false;
+//     unsigned digit = (unsigned)(c - '0');
+//     if (v > ULLONG_MAX / 10)
+//       return false; /* переполнение */
+//     v *= 10;
+//     if (v > ULLONG_MAX - digit)
+//       return false;
+//     v += digit;
+//   }
+//   *out = v;
+//   return true;
+// }
+//
+// /* Возвращает 10^n в ull, или false при переполнении */
+// static bool pow10_u64(size_t n, unsigned long long *out) {
+//   unsigned long long v = 1;
+//   for (size_t i = 0; i < n; ++i) {
+//     if (v > ULLONG_MAX / 10)
+//       return false;
+//     v *= 10;
+//   }
+//   *out = v;
+//   return true;
+// }
+//
+// number aton(const char *str) {
+//   if (str == NULL)
+//     return (number){0, 0};
+//   size_t len = strlen(str);
+//   if (len == 0)
+//     return (number){0, 0};
+//
+//   size_t i = 0;
+//   bool is_negative = false;
+//
+//   /* знак в начале (или '+' или '-') */
+//   if (str[0] == '-' || str[0] == '+') {
+//     is_negative = (str[0] == '-');
+//     i = 1;
+//     if (len == 1)
+//       return (number){0, 0}; /* только знак — ошибка */
+//   }
+//
+//   /* Случай: .<digits> (десятичная часть без целой) */
+//   if (i < len && str[i] == '.') {
+//     ++i;
+//     size_t start_dec = i;
+//     while (i < len && (unsigned char)str[i] >= '0' &&
+//            (unsigned char)str[i] <= '9')
+//       ++i;
+//     size_t end_dec = i;
+//     if (start_dec == end_dec)
+//       return (number){0, 0}; /* пустая десятичная часть */
+//     if (i != len)
+//       return (number){0, 0}; /* дальше ничего быть не должно */
+//     unsigned long long dec_part;
+//     if (!parse_u64_str(str + start_dec, end_dec - start_dec, &dec_part))
+//       return (number){0, 0};
+//     unsigned long long denom;
+//     if (!pow10_u64(end_dec - start_dec, &denom))
+//       return (number){0, 0}; /* переполнение */
+//     long long numer_signed;
+//     if (dec_part > (unsigned long long)LLONG_MAX)
+//       return (number){0, 0}; /* выходит за i64 */
+//     numer_signed = (long long)dec_part;
+//     if (is_negative)
+//       numer_signed = -numer_signed;
+//     return fractionRecovery((number){numer_signed, denom});
+//   }
+//
+//   /* Парсим первую (целую) последовательность цифр */
+//   size_t start_first = i;
+//   while (i < len && (unsigned char)str[i] >= '0' &&
+//          (unsigned char)str[i] <= '9')
+//     ++i;
+//   size_t end_first = i;
+//   if (end_first == start_first)
+//     return (number){0, 0}; /* нет цифр */
+//
+//   unsigned long long first_num;
+//   if (!parse_u64_str(str + start_first, end_first - start_first, &first_num))
+//     return (number){0, 0};
+//
+//   /* Если строка кончилась — целое число */
+//   if (end_first == len) {
+//     long long numer = (long long)first_num;
+//     if (is_negative)
+//       numer = -numer;
+//     return (number){numer, 1ULL};
+//   }
+//
+//   /* Если есть точка и точка — последний символ, считаем это целым (как в
+//   Zig:
+//    * "123." -> целое) */
+//   if (str[end_first] == '.' && end_first + 1 == len) {
+//     long long numer = (long long)first_num;
+//     if (is_negative)
+//       numer = -numer;
+//     return (number){numer, 1ULL};
+//   }
+//
+//   char next = str[end_first];
+//
+//   if (next == ' ') {
+//     /* Смешанная дробь: <whole> <numerator>/<denominator>, допускаем
+//     несколько
+//      * пробелов */
+//     size_t j = end_first;
+//     while (j < len && str[j] == ' ')
+//       ++j;
+//     size_t start_num = j;
+//     while (j < len && (unsigned char)str[j] >= '0' &&
+//            (unsigned char)str[j] <= '9')
+//       ++j;
+//     size_t end_num = j;
+//     if (j == len)
+//       return (number){0, 0}; /* не может заканчиваться пробелом */
+//     if (start_num == end_num)
+//       return (number){0, 0}; /* пустой числитель */
+//     if (str[j] != '/')
+//       return (number){0, 0}; /* далее должна идти '/' */
+//     /* парсим числитель */
+//     unsigned long long numer_part;
+//     if (!parse_u64_str(str + start_num, end_num - start_num, &numer_part))
+//       return (number){0, 0};
+//     /* парсим знаменатель */
+//     ++j; /* пропустить '/' */
+//     size_t start_den = j;
+//     while (j < len && (unsigned char)str[j] >= '0' &&
+//            (unsigned char)str[j] <= '9')
+//       ++j;
+//     size_t end_den = j;
+//     if (j != len)
+//       return (number){0, 0}; /* дальше ничего не должно быть */
+//     if (start_den == end_den)
+//       return (number){0, 0}; /* пустой знаменатель */
+//     unsigned long long denom_part;
+//     if (!parse_u64_str(str + start_den, end_den - start_den, &denom_part))
+//       return (number){0, 0};
+//     /* вычисляем итоговый числитель = whole * denom + numer_part */
+//     /* проверяем возможное переполнение при умножении whole*denom */
+//     if (first_num > 0 && denom_part > 0 && first_num > ULLONG_MAX /
+//     denom_part)
+//       return (number){0, 0};
+//     unsigned long long abs_result_num_ull = first_num * denom_part +
+//     numer_part; if (abs_result_num_ull > (unsigned long long)LLONG_MAX)
+//       return (number){0, 0};
+//     long long res_num = (long long)abs_result_num_ull;
+//     if (is_negative)
+//       res_num = -res_num;
+//     return fractionRecovery((number){res_num, denom_part});
+//   } else if (next == '.') {
+//     /* Десятичная часть после целой */
+//     size_t j = end_first + 1;
+//     size_t start_dec = j;
+//     while (j < len && (unsigned char)str[j] >= '0' &&
+//            (unsigned char)str[j] <= '9')
+//       ++j;
+//     size_t end_dec = j;
+//     if (start_dec == end_dec)
+//       return (number){0, 0}; /* пустая дробная часть */
+//     if (j != len)
+//       return (number){0, 0}; /* дальше ничего быть не должно */
+//     unsigned long long dec_part;
+//     if (!parse_u64_str(str + start_dec, end_dec - start_dec, &dec_part))
+//       return (number){0, 0};
+//     unsigned long long denom;
+//     size_t dec_len = end_dec - start_dec;
+//     if (!pow10_u64(dec_len, &denom))
+//       return (number){0, 0};
+//     /* abs_numerator = dec_part + whole_part * denom  (проверяем
+//     переполнение)
+//      */
+//     if (first_num > 0 && denom > 0 && first_num > ULLONG_MAX / denom)
+//       return (number){0, 0};
+//     unsigned long long abs_num_ull = dec_part + first_num * denom;
+//     if (abs_num_ull > (unsigned long long)LLONG_MAX)
+//       return (number){0, 0};
+//     long long numer = (long long)abs_num_ull;
+//     if (is_negative)
+//       numer = -numer;
+//     return fractionRecovery((number){numer, denom});
+//   } else if (next == '/') {
+//     /* Простая дробь вида A/B, где A — первый parsed (first_num) */
+//     size_t j = end_first + 1;
+//     size_t start_den = j;
+//     while (j < len && (unsigned char)str[j] >= '0' &&
+//            (unsigned char)str[j] <= '9')
+//       ++j;
+//     size_t end_den = j;
+//     if (start_den == end_den)
+//       return (number){0, 0}; /* пустой знаменатель */
+//     if (j != len)
+//       return (number){0, 0}; /* дальше ничего не должно быть */
+//     unsigned long long denom;
+//     if (!parse_u64_str(str + start_den, end_den - start_den, &denom))
+//       return (number){0, 0};
+//     if (first_num > (unsigned long long)LLONG_MAX)
+//       return (number){0, 0};
+//     long long numer = (long long)first_num;
+//     if (is_negative)
+//       numer = -numer;
+//     return fractionRecovery((number){numer, denom});
+//   } else {
+//     return (number){0, 0}; /* формат не распознан */
+//   }
+// }
+
+static bool parse_digits_ull(const char **pp, unsigned long long *out,
+                             size_t *count) {
+  const char *p = *pp;
   unsigned long long v = 0;
-  for (size_t i = 0; i < len; ++i) {
-    char c = s[i];
-    if (c < '0' || c > '9')
-      return false;
-    unsigned digit = (unsigned)(c - '0');
-    if (v > ULLONG_MAX / 10)
+  size_t cnt = 0;
+  unsigned char ch = (unsigned char)*p;
+  if (ch < '0' || ch > '9')
+    return false;
+  while ((ch = (unsigned char)*p) >= '0' && ch <= '9') {
+    unsigned digit = (unsigned)(ch - '0');
+    if (v > (ULLONG_MAX - digit) / 10)
       return false; /* переполнение */
-    v *= 10;
-    if (v > ULLONG_MAX - digit)
-      return false;
-    v += digit;
+    v = v * 10 + digit;
+    ++p;
+    ++cnt;
   }
+  *pp = p;
   *out = v;
+  if (count)
+    *count = cnt;
   return true;
 }
 
-/* Возвращает 10^n в ull, или false при переполнении */
+/* Возвращает 10^n в out или false при переполнении */
 static bool pow10_u64(size_t n, unsigned long long *out) {
   unsigned long long v = 1;
   for (size_t i = 0; i < n; ++i) {
@@ -291,174 +510,141 @@ static bool pow10_u64(size_t n, unsigned long long *out) {
 number aton(const char *str) {
   if (str == NULL)
     return (number){0, 0};
-  size_t len = strlen(str);
-  if (len == 0)
-    return (number){0, 0};
 
-  size_t i = 0;
+  const char *p = str;
+  /* Нет пропуска начальных пробелов — ведём себя как Zig-версия (строго). */
+
+  /* Сигн */
   bool is_negative = false;
-
-  /* знак в начале (или '+' или '-') */
-  if (str[0] == '-' || str[0] == '+') {
-    is_negative = (str[0] == '-');
-    i = 1;
-    if (len == 1)
+  if (*p == '+' || *p == '-') {
+    is_negative = (*p == '-');
+    ++p;
+    if (*p == '\0')
       return (number){0, 0}; /* только знак — ошибка */
   }
 
   /* Случай: .<digits> (десятичная часть без целой) */
-  if (i < len && str[i] == '.') {
-    ++i;
-    size_t start_dec = i;
-    while (i < len && (unsigned char)str[i] >= '0' &&
-           (unsigned char)str[i] <= '9')
-      ++i;
-    size_t end_dec = i;
-    if (start_dec == end_dec)
-      return (number){0, 0}; /* пустая десятичная часть */
-    if (i != len)
-      return (number){0, 0}; /* дальше ничего быть не должно */
+  if (*p == '.') {
+    ++p;
+    const char *start_dec = p;
     unsigned long long dec_part;
-    if (!parse_u64_str(str + start_dec, end_dec - start_dec, &dec_part))
-      return (number){0, 0};
-    unsigned long long denom;
-    if (!pow10_u64(end_dec - start_dec, &denom))
-      return (number){0, 0}; /* переполнение */
-    long long numer_signed;
-    if (dec_part > (unsigned long long)LLONG_MAX)
-      return (number){0, 0}; /* выходит за i64 */
-    numer_signed = (long long)dec_part;
-    if (is_negative)
-      numer_signed = -numer_signed;
-    return fractionRecovery((number){numer_signed, denom});
-  }
-
-  /* Парсим первую (целую) последовательность цифр */
-  size_t start_first = i;
-  while (i < len && (unsigned char)str[i] >= '0' &&
-         (unsigned char)str[i] <= '9')
-    ++i;
-  size_t end_first = i;
-  if (end_first == start_first)
-    return (number){0, 0}; /* нет цифр */
-
-  unsigned long long first_num;
-  if (!parse_u64_str(str + start_first, end_first - start_first, &first_num))
-    return (number){0, 0};
-
-  /* Если строка кончилась — целое число */
-  if (end_first == len) {
-    long long numer = (long long)first_num;
-    if (is_negative)
-      numer = -numer;
-    return (number){numer, 1ULL};
-  }
-
-  /* Если есть точка и точка — последний символ, считаем это целым (как в Zig:
-   * "123." -> целое) */
-  if (str[end_first] == '.' && end_first + 1 == len) {
-    long long numer = (long long)first_num;
-    if (is_negative)
-      numer = -numer;
-    return (number){numer, 1ULL};
-  }
-
-  char next = str[end_first];
-
-  if (next == ' ') {
-    /* Смешанная дробь: <whole> <numerator>/<denominator>, допускаем несколько
-     * пробелов */
-    size_t j = end_first;
-    while (j < len && str[j] == ' ')
-      ++j;
-    size_t start_num = j;
-    while (j < len && (unsigned char)str[j] >= '0' &&
-           (unsigned char)str[j] <= '9')
-      ++j;
-    size_t end_num = j;
-    if (j == len)
-      return (number){0, 0}; /* не может заканчиваться пробелом */
-    if (start_num == end_num)
-      return (number){0, 0}; /* пустой числитель */
-    if (str[j] != '/')
-      return (number){0, 0}; /* далее должна идти '/' */
-    /* парсим числитель */
-    unsigned long long numer_part;
-    if (!parse_u64_str(str + start_num, end_num - start_num, &numer_part))
-      return (number){0, 0};
-    /* парсим знаменатель */
-    ++j; /* пропустить '/' */
-    size_t start_den = j;
-    while (j < len && (unsigned char)str[j] >= '0' &&
-           (unsigned char)str[j] <= '9')
-      ++j;
-    size_t end_den = j;
-    if (j != len)
+    size_t dec_len;
+    if (!parse_digits_ull(&p, &dec_part, &dec_len))
+      return (number){0, 0}; /* пустая или переполнение */
+    if (*p != '\0')
       return (number){0, 0}; /* дальше ничего не должно быть */
-    if (start_den == end_den)
-      return (number){0, 0}; /* пустой знаменатель */
-    unsigned long long denom_part;
-    if (!parse_u64_str(str + start_den, end_den - start_den, &denom_part))
-      return (number){0, 0};
-    /* вычисляем итоговый числитель = whole * denom + numer_part */
-    /* проверяем возможное переполнение при умножении whole*denom */
-    if (first_num > 0 && denom_part > 0 && first_num > ULLONG_MAX / denom_part)
-      return (number){0, 0};
-    unsigned long long abs_result_num_ull = first_num * denom_part + numer_part;
-    if (abs_result_num_ull > (unsigned long long)LLONG_MAX)
-      return (number){0, 0};
-    long long res_num = (long long)abs_result_num_ull;
-    if (is_negative)
-      res_num = -res_num;
-    return fractionRecovery((number){res_num, denom_part});
-  } else if (next == '.') {
-    /* Десятичная часть после целой */
-    size_t j = end_first + 1;
-    size_t start_dec = j;
-    while (j < len && (unsigned char)str[j] >= '0' &&
-           (unsigned char)str[j] <= '9')
-      ++j;
-    size_t end_dec = j;
-    if (start_dec == end_dec)
-      return (number){0, 0}; /* пустая дробная часть */
-    if (j != len)
-      return (number){0, 0}; /* дальше ничего быть не должно */
-    unsigned long long dec_part;
-    if (!parse_u64_str(str + start_dec, end_dec - start_dec, &dec_part))
-      return (number){0, 0};
     unsigned long long denom;
-    size_t dec_len = end_dec - start_dec;
     if (!pow10_u64(dec_len, &denom))
       return (number){0, 0};
-    /* abs_numerator = dec_part + whole_part * denom  (проверяем переполнение)
-     */
-    if (first_num > 0 && denom > 0 && first_num > ULLONG_MAX / denom)
+    if (dec_part > (unsigned long long)LLONG_MAX)
       return (number){0, 0};
-    unsigned long long abs_num_ull = dec_part + first_num * denom;
-    if (abs_num_ull > (unsigned long long)LLONG_MAX)
-      return (number){0, 0};
-    long long numer = (long long)abs_num_ull;
+    long long numer = (long long)dec_part;
     if (is_negative)
       numer = -numer;
     return fractionRecovery((number){numer, denom});
-  } else if (next == '/') {
-    /* Простая дробь вида A/B, где A — первый parsed (first_num) */
-    size_t j = end_first + 1;
-    size_t start_den = j;
-    while (j < len && (unsigned char)str[j] >= '0' &&
-           (unsigned char)str[j] <= '9')
-      ++j;
-    size_t end_den = j;
-    if (start_den == end_den)
-      return (number){0, 0}; /* пустой знаменатель */
-    if (j != len)
+  }
+
+  /* Парсим целую часть (первая последовательность цифр) */
+  unsigned long long whole;
+  size_t whole_len;
+  if (!parse_digits_ull(&p, &whole, &whole_len))
+    return (number){0, 0};
+  /* Если строка закончилась — целое число */
+  if (*p == '\0') {
+    if (whole > (unsigned long long)LLONG_MAX)
+      return (number){0, 0};
+    long long numer = (long long)whole;
+    if (is_negative)
+      numer = -numer;
+    return (number){numer, 1ULL};
+  }
+  /* Если "123." (точка последний символ) — считаем целым */
+  if (*p == '.' && p[1] == '\0') {
+    if (whole > (unsigned long long)LLONG_MAX)
+      return (number){0, 0};
+    long long numer = (long long)whole;
+    if (is_negative)
+      numer = -numer;
+    return (number){numer, 1ULL};
+  }
+
+  char ch = *p;
+  if (ch == ' ') {
+    /* Смешанная дробь: whole <spaces> numer/denom */
+    /* пропустить пробелы */
+    while (*p == ' ')
+      ++p;
+    /* парсим числитель */
+    unsigned long long numer_part;
+    size_t numer_len;
+    if (!parse_digits_ull(&p, &numer_part, &numer_len))
+      return (number){0, 0}; /* пустой или переполнение */
+    if (*p != '/')
+      return (number){0, 0}; /* далее должна идти '/' */
+    ++p;                     /* пропустить '/' */
+    unsigned long long denom;
+    size_t denom_len;
+    if (!parse_digits_ull(&p, &denom, &denom_len))
+      return (number){0, 0}; /* пустой или переполнение */
+    if (*p != '\0')
+      return (number){0, 0}; /* дальше ничего не должно быть */
+
+    /* Проверки на переполнение при whole * denom + numer_part */
+    if (denom == 0)
+      return (number){0, 0}; /* ноль в знаменателе — ошибка */
+    if (whole > 0 && whole > ULLONG_MAX / denom)
+      return (number){0, 0};
+    unsigned long long abs_res = whole * denom;
+    if (abs_res > ULLONG_MAX - numer_part)
+      return (number){0, 0};
+    abs_res += numer_part;
+    if (abs_res > (unsigned long long)LLONG_MAX)
+      return (number){0, 0};
+    long long res_numer = (long long)abs_res;
+    if (is_negative)
+      res_numer = -res_numer;
+    return fractionRecovery((number){res_numer, denom});
+  } else if (ch == '.') {
+    /* Десятичная часть после целой: whole.dec */
+    ++p; /* переход к десятичной части */
+    unsigned long long dec_part;
+    size_t dec_len;
+    if (!parse_digits_ull(&p, &dec_part, &dec_len))
+      return (number){0, 0}; /* пустая или переполнение */
+    if (*p != '\0')
       return (number){0, 0}; /* дальше ничего не должно быть */
     unsigned long long denom;
-    if (!parse_u64_str(str + start_den, end_den - start_den, &denom))
+    if (!pow10_u64(dec_len, &denom))
       return (number){0, 0};
-    if (first_num > (unsigned long long)LLONG_MAX)
+    if (denom == 0)
       return (number){0, 0};
-    long long numer = (long long)first_num;
+    /* abs_numer = whole * denom + dec_part (проверки) */
+    if (whole > 0 && whole > ULLONG_MAX / denom)
+      return (number){0, 0};
+    unsigned long long abs_num = whole * denom;
+    if (abs_num > ULLONG_MAX - dec_part)
+      return (number){0, 0};
+    abs_num += dec_part;
+    if (abs_num > (unsigned long long)LLONG_MAX)
+      return (number){0, 0};
+    long long numer = (long long)abs_num;
+    if (is_negative)
+      numer = -numer;
+    return fractionRecovery((number){numer, denom});
+  } else if (ch == '/') {
+    /* Простая дробь: A/B (A == whole) */
+    ++p; /* перейдём к знаменателю */
+    unsigned long long denom;
+    size_t denom_len;
+    if (!parse_digits_ull(&p, &denom, &denom_len))
+      return (number){0, 0};
+    if (*p != '\0')
+      return (number){0, 0};
+    if (denom == 0)
+      return (number){0, 0};
+    if (whole > (unsigned long long)LLONG_MAX)
+      return (number){0, 0};
+    long long numer = (long long)whole;
     if (is_negative)
       numer = -numer;
     return fractionRecovery((number){numer, denom});
