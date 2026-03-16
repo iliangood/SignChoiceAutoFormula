@@ -60,17 +60,10 @@ fn formula_mut(allocator: std.mem.Allocator, nums: []Number) !?[:0]u8 {
 }
 // Для корректной работы массив должен быть отсортирован в неубывающем порядке
 fn formula_mut_fast(writer: *std.Io.Writer, nums: []Number) !void {
-    if (nums.len < 3) {
+    if (nums.len < 2) {
         switch (nums.len) {
             0 => {},
             1 => try writer.print("{f}", .{nums[0]}),
-            2 => {
-                const divider = Number.makei(2);
-                try writer.print("{f} ± {f}", .{
-                    nums[0].add(&nums[1]).div(&divider),
-                    nums[1].sub(&nums[0]).div(&divider),
-                });
-            },
             else => unreachable,
         }
         return;
@@ -112,6 +105,26 @@ fn formula(nums: []const Number, allocator: std.mem.Allocator) !?[*:0]u8 {
     const mut_nums = try allocator.dupe(Number, nums);
     defer allocator.free(mut_nums);
     return formula_mut(allocator, mut_nums);
+}
+
+fn formula_abstract(writer: *std.Io.Writer, nums: []const []const u8) !void {
+    if (nums.len < 2) {
+        switch (nums.len) {
+            0 => {},
+            1 => writer.print("{s}", nums[0]),
+            else => unreachable,
+        }
+        return;
+    }
+    for (0..nums.len - 1) |_| {
+        try writer.print("(0.5 ± 0.5)*(", .{});
+    }
+    for (0..nums.len - 1) |i| {
+        const sign = if (nums[i + 1][0] == '-') "" else "+";
+        try writer.print("{s}{s}{s}", .{ nums[i], sign, nums[i + 1] });
+    }
+    const sign = if (nums[nums.len - 1][0] == '-') "" else "+";
+    try writer.print("{s}{s}", .{ sign, nums[nums.len - 1] });
 }
 
 fn test_formula_mut(allocator: std.mem.Allocator, expected: [:0]const u8, nums: []Number) !void {
@@ -226,6 +239,58 @@ test "remove_duplicates - large range and unsorted" {
     const expected = [_]u8{ 1, 2, 50, 100 };
     try testing.expectEqualSlices(u8, &expected, remove_duplicates(u8, &arr, lessThan_u8, eq_u8));
 }
+
+// fn math_solve(io: *std.Io) !void {
+//     var buf: [262144]u8 = undefined;
+//     var buf_writer: [262144]u8 = undefined;
+//     var writer = std.Io.Writer.fixed(&buf_writer);
+//
+//     const smp_allocator = std.heap.smp_allocator;
+//     // defer _ = gpa.deinit();
+//     // var arena = std.heap.ArenaAllocator.init(gpa_allocator);
+//     // defer arena.deinit();
+//     // const allocator = arena.allocator();
+//     // const allocator = std.heap.c_allocator;
+//     // var
+//     var fallbackAllocator = std.heap.StackFallbackAllocator(262144){
+//         .buffer = buf,
+//         .fallback_allocator = smp_allocator,
+//         .fixed_buffer_allocator = std.heap.FixedBufferAllocator.init(&buf),
+//     };
+//     const allocator = fallbackAllocator.get();
+//
+//     var stdout_writer = std.Io.File.stdout().writer(io, &.{});
+//     const stdout = &stdout_writer.interface;
+//     const start = std.Io.Clock.real.now(io);
+//     var args = try init.minimal.args.toSlice(allocator);
+//     if (args.len == 1) {
+//         try stdout.print("enter at least 1 number.\n example:\n ./main 1 2 3\n", .{});
+//         return;
+//     }
+//     const nums = try allocator.alloc(Number, args.len - 1);
+//     for (args[1..], nums) |arg, *num| {
+//         num.* = Number.parse(arg) catch |err| {
+//             switch (err) {
+//                 Number.ParseError.FormatError, Number.ParseError.InvalidCharacter => try stdout.print("Invalid format of number: \"{s}\"", .{arg}),
+//                 Number.ParseError.IsEmpty => try stdout.print("Empty number", .{}),
+//                 Number.ParseError.Overflow, Number.ParseError.Underflow => try stdout.print("num is too long", .{}),
+//             }
+//             return;
+//         };
+//     }
+//     const mid = std.Io.Clock.real.now(io);
+//     try formula_mut_fast(&writer, remove_duplicates(Number, nums, num_less, num_eq));
+//
+//     const end = std.Io.Clock.real.now(io);
+//     if (config.measure_time) {
+//         const duration = std.Io.Timestamp.durationTo(start, end);
+//         const dur1 = std.Io.Timestamp.durationTo(start, mid);
+//         const dur2 = std.Io.Timestamp.durationTo(mid, end);
+//         try stdout.print("elapsed:{f}\nparse:{f}\nformula:{f}\n", .{ duration, dur1, dur2 });
+//     }
+//
+//     try stdout.print("{s}\n", .{writer.buffered()});
+// }
 
 pub fn main(init: std.process.Init) !void {
     var buf: [262144]u8 = undefined;
