@@ -119,11 +119,17 @@ fn formula_abstract(writer: *std.Io.Writer, nums: []const []const u8) !void {
     for (0..nums.len - 1) |_| {
         try writer.print("(0.5 ± 0.5)*(", .{});
     }
-    for (0..nums.len - 1) |i| {
+    const isNeg1 = nums[1][0] == '-';
+    const sign1: u8 = if (isNeg1) '+' else '-';
+    const num1 = if (isNeg1) nums[1][1..] else nums[1];
+    try writer.print("{s}{c}{s})", .{ nums[0], sign1, num1 });
+    for (1..nums.len - 1) |i| {
         const isNeg = nums[i + 1][0] == '-';
-        const sign = if (isNeg) "+" else "-";
+        const sign: u8 = if (isNeg) '+' else '-';
         const num = if (isNeg) nums[i + 1][1..] else nums[i + 1];
-        try writer.print("{s}{s}{s})", .{ nums[i], sign, num });
+        const fIsNeg = nums[i][0] == '-';
+        const fSign = if (fIsNeg) "" else "+";
+        try writer.print("{s}{s}{c}{s})", .{ fSign, nums[i], sign, num });
     }
     const sign = if (nums[nums.len - 1][0] == '-') "" else "+";
     try writer.print("{s}{s}", .{ sign, nums[nums.len - 1] });
@@ -323,12 +329,12 @@ fn str_solve(init: std.process.Init) !void {
         try stdout.print("enter at least 1 number.\n example:\n ./main 1 2 3\n", .{});
         return;
     }
-    const nums = try allocator.alloc([]const u8, args.len - 1);
-    for (args[1..], nums) |arg, *num| {
-        num.* = arg;
-    }
+    // const nums = try allocator.alloc([]const u8, args.len - 1);
+    // for (args[1..], nums) |arg, *num| {
+    //     num.* = arg;
+    // }
     const mid = std.Io.Clock.real.now(io);
-    try formula_abstract(&writer, nums);
+    try formula_abstract(&writer, args[1..]);
 
     const end = std.Io.Clock.real.now(io);
     if (config.measure_time) {
