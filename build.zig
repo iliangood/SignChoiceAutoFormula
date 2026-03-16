@@ -34,8 +34,10 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addImport("fractions", libfractions.root_module);
 
     const measure_time = b.option(bool, "measure-time", "measure time") orelse false;
+    const abstract = b.option(bool, "abstract", "use abstract formula") orelse false;
     const options = b.addOptions();
     options.addOption(bool, "measure_time", measure_time);
+    options.addOption(bool, "abstract", abstract);
     exe.root_module.addOptions("config", options);
 
     b.installArtifact(exe);
