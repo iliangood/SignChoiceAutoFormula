@@ -121,11 +121,11 @@ pub const Number = struct {
         var denominator = self.denominator;
         const isNegative = self.numerator < 0;
         const numerator = @as(u64, @intCast(@abs(self.numerator)));
-        const twos = countMultiplier(&denominator, 2);
         const fives = countMultiplier(&denominator, 5);
-        if (denominator != 1) {
+        if (!math.isPowerOfTwo(denominator)) {
             return null;
         }
+        const twos = @ctz(denominator);
         const decimal_places: u64 = @max(twos, fives);
         const whole_part = numerator / self.denominator;
         const dec_part: u64 = (numerator % self.denominator) * if (twos > fives)
