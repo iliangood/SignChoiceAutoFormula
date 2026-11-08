@@ -290,8 +290,9 @@ fn math_solve(init: std.process.Init) !void {
             return;
         };
     }
+    const unique_nums = remove_duplicates(Number, nums, num_less, num_eq);
     const mid = std.Io.Clock.real.now(io);
-    try formula_mut_fast(&writer, remove_duplicates(Number, nums, num_less, num_eq));
+    try formula_mut_fast(&writer, unique_nums);
 
     const end = std.Io.Clock.real.now(io);
     if (config.measure_time) {
