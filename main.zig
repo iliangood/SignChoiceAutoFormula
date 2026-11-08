@@ -317,12 +317,9 @@ fn str_solve(init: std.process.Init) !void {
     // const allocator = arena.allocator();
     // const allocator = std.heap.c_allocator;
     // var
-    var fallbackAllocator = std.heap.StackFallbackAllocator(262144){
-        .buffer = buf,
-        .fallback_allocator = smp_allocator,
-        .fixed_buffer_allocator = std.heap.FixedBufferAllocator.init(&buf),
-    };
-    const allocator = fallbackAllocator.get();
+    var fallbackAllocator = std.heap.BufferFirstAllocator.init(&buf, smp_allocator);
+
+    const allocator = fallbackAllocator.allocator();
 
     const io = init.io;
     var stdout_writer = std.Io.File.stdout().writer(io, &.{});
