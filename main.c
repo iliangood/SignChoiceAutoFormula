@@ -1,5 +1,5 @@
-#include <bits/time.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,91 +8,138 @@
 #include "config.h"
 #include "fractions.h"
 
-// Статический буфер для сверхбыстрой склейки строк (O(1) аллокаций)
-#define OUT_BUFFER_SIZE (2048 * 1024)
-static char out_buffer[OUT_BUFFER_SIZE];
+// 256KB на стеке для генерации гигантской строки без malloc
+#define STACK_OUT_SIZE (262144)
 
-static inline void write_str(char** ptr, const char* s) {
-  while (*s)
-    *(*ptr)++ = *s++;
+static const char DIGIT_PAIRS[200] = {
+    '0', '0', '0', '1', '0', '2', '0', '3', '0', '4', '0', '5', '0', '6', '0',
+    '7', '0', '8', '0', '9', '1', '0', '1', '1', '1', '2', '1', '3', '1', '4',
+    '1', '5', '1', '6', '1', '7', '1', '8', '1', '9', '2', '0', '2', '1', '2',
+    '2', '2', '3', '2', '4', '2', '5', '2', '6', '2', '7', '2', '8', '2', '9',
+    '3', '0', '3', '1', '3', '2', '3', '3', '3', '4', '3', '5', '3', '6', '3',
+    '7', '3', '8', '3', '9', '4', '0', '4', '1', '4', '2', '4', '3', '4', '4',
+    '4', '5', '4', '6', '4', '7', '4', '8', '4', '9', '5', '0', '5', '1', '5',
+    '2', '5', '3', '5', '4', '5', '5', '5', '6', '5', '7', '5', '8', '5', '9',
+    '6', '0', '6', '1', '6', '2', '6', '3', '6', '4', '6', '5', '6', '6', '6',
+    '7', '6', '8', '6', '9', '7', '0', '7', '1', '7', '2', '7', '3', '7', '4',
+    '7', '5', '7', '6', '7', '7', '7', '8', '7', '9', '8', '0', '8', '1', '8',
+    '2', '8', '3', '8', '4', '8', '5', '8', '6', '8', '7', '8', '8', '8', '9',
+    '9', '0', '9', '1', '9', '2', '9', '3', '9', '4', '9', '5', '9', '6', '9',
+    '7', '9', '8', '9', '9'};
+
+static inline void write_bytes(char** __restrict ptr,
+                               const char* __restrict s,
+                               size_t len) {
+  memcpy(*ptr, s, len);
+  *ptr += len;
 }
 
-// Сверхбыстрый конвертер чисел, обходит snprintf
-static inline void write_ull(char** ptr, unsigned long long v) {
+static inline void write_cstr(char** __restrict ptr, const char* __restrict s) {
+  size_t len = strlen(s);
+  memcpy(*ptr, s, len);
+  *ptr += len;
+}
+
+static inline void write_ull(char** __restrict ptr, unsigned long long v) {
+  if (v < 10) {
+    *(*ptr)++ = (char)('0' + v);
+    return;
+  }
+  if (v < 100) {
+    memcpy(*ptr, &DIGIT_PAIRS[v * 2], 2);
+    *ptr += 2;
+    return;
+  }
   char buf[32];
-  char* p = buf + 31;
-  int len = 0;
-  do {
-    *--p = '0' + (v % 10);
-    v /= 10;
-    len++;
-  } while (v);
+  char* p = buf + sizeof(buf);
+  while (v >= 100) {
+    unsigned int idx = (unsigned int)((v % 100) * 2);
+    v /= 100;
+    p -= 2;
+    memcpy(p, &DIGIT_PAIRS[idx], 2);
+  }
+  if (v < 10) {
+    *--p = (char)('0' + v);
+  } else {
+    p -= 2;
+    memcpy(p, &DIGIT_PAIRS[v * 2], 2);
+  }
+  size_t len = (size_t)((buf + sizeof(buf)) - p);
   memcpy(*ptr, p, len);
   *ptr += len;
 }
 
-static inline void write_ull_padded(char** ptr, unsigned long long v, int pad) {
+static inline void write_ull_padded(char** __restrict ptr,
+                                    unsigned long long v,
+                                    int pad) {
   char buf[32];
-  char* p = buf + 31;
+  char* p = buf + sizeof(buf);
   int len = 0;
-  do {
-    *--p = '0' + (v % 10);
-    v /= 10;
-    len++;
-  } while (v);
+  while (v >= 100) {
+    unsigned int idx = (unsigned int)((v % 100) * 2);
+    v /= 100;
+    p -= 2;
+    memcpy(p, &DIGIT_PAIRS[idx], 2);
+    len += 2;
+  }
+  if (v < 10) {
+    *--p = (char)('0' + v);
+    len += 1;
+  } else {
+    p -= 2;
+    memcpy(p, &DIGIT_PAIRS[v * 2], 2);
+    len += 2;
+  }
   while (len < pad) {
     *--p = '0';
     len++;
   }
-  memcpy(*ptr, p, len);
+  memcpy(*ptr, p, (size_t)len);
   *ptr += len;
 }
 
-static void write_ntoa(char** ptr, number num) {
-  long long num_abs = llabs(num.numerator);
-  long long den = llabs(num.denominator);
+static inline void write_ntoa(char** __restrict ptr, number num) {
+  unsigned long long num_abs =
+      (unsigned long long)__builtin_llabs(num.numerator);
+  unsigned long long den = (unsigned long long)__builtin_llabs(num.denominator);
   bool is_neg = (num.numerator < 0) ^ (num.denominator < 0);
 
-  if (den == 1) {
-    if (is_neg && num_abs != 0)
-      *(*ptr)++ = '-';
+  if (is_neg && num_abs != 0)
+    *(*ptr)++ = '-';
+
+  if (__builtin_expect(den == 1, 1)) {
     write_ull(ptr, num_abs);
     return;
   }
 
-  long long d_test = den;
-  int twos = 0, fives = 0;
-  while ((d_test & 1) == 0) {
-    d_test >>= 1;
-    twos++;
-  }
+  int twos = __builtin_ctzll(den);
+  unsigned long long d_test = den >> twos;
+  int fives = 0;
   while (d_test % 5 == 0) {
     d_test /= 5;
     fives++;
   }
 
   if (d_test == 1) {
-    if (is_neg && num_abs != 0)
-      *(*ptr)++ = '-';
     int decimal_places = (twos > fives) ? twos : fives;
-    long long integer_part = num_abs / den;
-    long long rem = num_abs % den;
+    unsigned long long integer_part = num_abs / den;
+    unsigned long long rem = num_abs % den;
 
-    long long mul = 1;
-    for (int i = 0; i < decimal_places - twos; i++)
-      mul *= 2;
-    for (int i = 0; i < decimal_places - fives; i++)
-      mul *= 5;
-    long long decimal_part = rem * mul;
+    unsigned long long mul = 1;
+    if (decimal_places > twos) {
+      for (int i = 0; i < decimal_places - twos; i++)
+        mul *= 5;
+    } else if (decimal_places > fives) {
+      mul <<= (decimal_places - fives);
+    }
+    unsigned long long decimal_part = rem * mul;
 
     write_ull(ptr, integer_part);
     *(*ptr)++ = '.';
     write_ull_padded(ptr, decimal_part, decimal_places);
   } else {
-    if (is_neg && num_abs != 0)
-      *(*ptr)++ = '-';
-    long long integer_part = num_abs / den;
-    long long rem = num_abs % den;
+    unsigned long long integer_part = num_abs / den;
+    unsigned long long rem = num_abs % den;
     if (integer_part > 0) {
       write_ull(ptr, integer_part);
       *(*ptr)++ = ' ';
@@ -107,64 +154,69 @@ static void write_ntoa(char** ptr, number num) {
   }
 }
 
-// Итеративная, безаллокационная сборка всей формулы
-char* formula(number* nums, size_t size) {
-  if (size < 1)
-    return NULL;
-  char* ptr = out_buffer;
+#if defined(ABSTRACT_ENABLED)
+// Абстрактная сборка формулы (только склейка строк, без парсинга и математики)
+static size_t formula_abstract(char* __restrict out,
+                               char** __restrict args,
+                               size_t size) {
+  if (size == 0)
+    return 0;
+  char* ptr = out;
 
   if (size == 1) {
-    write_ntoa(&ptr, nums[0]);
-    *ptr = '\0';
-    return strdup(out_buffer);
+    write_cstr(&ptr, args[0]);
+    *ptr++ = '\n';
+    return (size_t)(ptr - out);
   }
 
-  number* saved = malloc(size * sizeof(number));
-
-  // Фаза 1: предрасчет математики сверху-вниз
-  for (size_t k = size; k > 2; k--) {
-    saved[k - 1] = nums[k - 1];
-    for (size_t i = 0; i < k - 1; i++) {
-      nums[i] = subn(nums[i], nums[k - 1]);
-    }
-  }
-
-  // Фаза 2: формирование строки слева-направо
+  static const char PREFIX[] = "(0.5 \xc2\xb1 0.5)*(";
   for (size_t i = 0; i < size - 2; i++) {
-    write_str(&ptr, "(0.5 ± 0.5)*(");
+    write_bytes(&ptr, PREFIX, sizeof(PREFIX) - 1);
   }
 
-  number divider = {2, 1};
-  number n1 = divn(addn(nums[0], nums[1]), divider);
-  number n2 = absn(divn(subn(nums[1], nums[0]), divider));
+  if (size == 2) {
+    write_bytes(&ptr, "(", 1);
+    write_cstr(&ptr, args[0]);
+    write_bytes(&ptr, "+", 1);
+    write_cstr(&ptr, args[1]);
+    write_bytes(&ptr, ")/2 \xc2\xb1 |", 8);
+    write_cstr(&ptr, args[1]);
+    write_bytes(&ptr, "-", 1);
+    write_cstr(&ptr, args[0]);
+    write_bytes(&ptr, "|/2", 3);
+  } else {
+    write_bytes(&ptr, "(", 1);
+    write_cstr(&ptr, args[0]);
+    write_bytes(&ptr, "+", 1);
+    write_cstr(&ptr, args[1]);
+    write_bytes(&ptr, "-2*", 3);
+    write_cstr(&ptr, args[2]);
+    write_bytes(&ptr, ")/2 \xc2\xb1 |", 8);
+    write_cstr(&ptr, args[1]);
+    write_bytes(&ptr, "-", 1);
+    write_cstr(&ptr, args[0]);
+    write_bytes(&ptr, "|/2", 3);
 
-  write_ntoa(&ptr, n1);
-  write_str(&ptr, " ± ");
-  write_ntoa(&ptr, n2);
-
-  for (size_t k = 3; k <= size; k++) {
-    write_str(&ptr, ")");
-    if (isNegative(saved[k - 1]))
-      write_str(&ptr, "-");
-    else
-      write_str(&ptr, "+");
-    write_ntoa(&ptr, absn(saved[k - 1]));
+    for (size_t k = 2; k < size - 1; k++) {
+      write_bytes(&ptr, ")+(", 3);
+      write_cstr(&ptr, args[k]);
+      write_bytes(&ptr, "-", 1);
+      write_cstr(&ptr, args[k + 1]);
+      write_bytes(&ptr, ")", 1);
+    }
+    write_bytes(&ptr, ")+", 2);
+    write_cstr(&ptr, args[size - 1]);
   }
 
-  *ptr = '\0';
-  free(saved);
-
-  char* res = malloc(ptr - out_buffer + 1);
-  memcpy(res, out_buffer, ptr - out_buffer + 1);
-  return res;
+  *ptr++ = '\n';
+  return (size_t)(ptr - out);
 }
+#else
 
-// 128-битное сравнение для исключения переполнений при кросс-умножении
-static int compare(const void* pa, const void* pb) {
-  number* a = (number*)pa;
-  number* b = (number*)pb;
-  __int128 left = (__int128)a->numerator * b->denominator;
-  __int128 right = (__int128)b->numerator * a->denominator;
+// Экстремально быстрый кастомный QuickSort для инлайна
+static inline int cmp_num(number a, number b) {
+  __int128 left = (__int128)a.numerator * b.denominator;
+  __int128 right = (__int128)b.numerator * a.denominator;
   if (left > right)
     return 1;
   if (left < right)
@@ -172,37 +224,128 @@ static int compare(const void* pa, const void* pb) {
   return 0;
 }
 
-size_t remove_duplicates(number** nums, size_t size) {
-  if (size == 0)
-    return 0;
-  qsort(*nums, size, sizeof(number), compare);
-  size_t new_size = 0;
-  for (size_t i = 1; i < size; i++) {
-    if (compare(&(*nums)[i], &(*nums)[new_size]) != 0) {
-      new_size++;
-      (*nums)[new_size] = (*nums)[i];
-    }
-  }
-  new_size++;
-  return new_size;  // Мы можем не делать realloc ради скорости, памяти не жалко
+static inline void swap_num(number* a, number* b) {
+  number tmp = *a;
+  *a = *b;
+  *b = tmp;
 }
 
+static void quicksort_nums(number* arr, int low, int high) {
+  if (low < high) {
+    number pivot = arr[high];
+    int i = low - 1;
+    for (int j = low; j <= high - 1; j++) {
+      if (cmp_num(arr[j], pivot) < 0) {
+        i++;
+        swap_num(&arr[i], &arr[j]);
+      }
+    }
+    swap_num(&arr[i + 1], &arr[high]);
+    int pi = i + 1;
+
+    quicksort_nums(arr, low, pi - 1);
+    quicksort_nums(arr, pi + 1, high);
+  }
+}
+
+// Оптимизированное удаление дубликатов (сортировка + фильтрация in-place)
+static inline size_t remove_duplicates(number* nums, size_t size) {
+  if (size <= 1)
+    return size;
+  quicksort_nums(nums, 0, (int)(size - 1));
+
+  size_t new_size = 0;
+  for (size_t i = 1; i < size; i++) {
+    if (cmp_num(nums[i], nums[new_size]) != 0) {
+      new_size++;
+      nums[new_size] = nums[i];
+    }
+  }
+  return new_size + 1;
+}
+
+// Математическая сборка с VLA (аллокация массивов прямо на стеке без malloc)
+static size_t formula_math(char* __restrict out,
+                           number* __restrict nums,
+                           size_t size) {
+  if (size == 0)
+    return 0;
+  char* ptr = out;
+
+  if (size == 1) {
+    write_ntoa(&ptr, nums[0]);
+    *ptr++ = '\n';
+    return (size_t)(ptr - out);
+  }
+
+  // Выделяем память на стеке за 0 наносекунд
+  number saved[size];
+
+  for (size_t k = size; k > 2; k--) {
+    saved[k - 1] = nums[k - 1];
+    for (size_t i = 0; i < k - 1; i++) {
+      nums[i] = subn(nums[i], nums[k - 1]);
+    }
+  }
+
+  static const char PREFIX[] = "(0.5 \xc2\xb1 0.5)*(";
+  for (size_t i = 0; i < size - 2; i++) {
+    write_bytes(&ptr, PREFIX, sizeof(PREFIX) - 1);
+  }
+
+  number divider = {2, 1};
+  number n1 = divn(addn(nums[0], nums[1]), divider);
+  number n2 = absn(divn(subn(nums[1], nums[0]), divider));
+
+  write_ntoa(&ptr, n1);
+  write_bytes(&ptr, " \xc2\xb1 ", 4);
+  write_ntoa(&ptr, n2);
+
+  for (size_t k = 3; k <= size; k++) {
+    write_bytes(&ptr, ")", 1);
+    if (isNegative(saved[k - 1])) {
+      write_bytes(&ptr, "-", 1);
+    } else {
+      write_bytes(&ptr, "+", 1);
+    }
+    write_ntoa(&ptr, absn(saved[k - 1]));
+  }
+
+  *ptr++ = '\n';
+  return (size_t)(ptr - out);
+}
+#endif  // ABSTRACT_ENABLED
+
 int main(int argc, char** argv) {
-  struct timespec start, mid, end;
-  if (argc == 1) {
+  if (__builtin_expect(argc < 2, 0)) {
     printf("enter at least 1 number.\n example:\n ./main 1 2 3\n");
     return 0;
   }
+
+  struct timespec start, mid, end;
   clock_gettime(CLOCK_MONOTONIC, &start);
-  number* nums = malloc((argc - 1) * sizeof(number));
-  for (int i = 1; i < argc; i++) {
-    nums[i - 1] = aton(argv[i]);
+
+  // Выделяем весь гигантский буфер сразу на стеке
+  char out_buffer[STACK_OUT_SIZE];
+  size_t out_len = 0;
+
+#if defined(ABSTRACT_ENABLED)
+  clock_gettime(CLOCK_MONOTONIC, &mid);
+  out_len = formula_abstract(out_buffer, argv + 1, (size_t)(argc - 1));
+  clock_gettime(CLOCK_MONOTONIC, &end);
+#else
+  size_t argc_sz = (size_t)(argc - 1);
+  number nums[argc_sz];  // VLA - создание массива без malloc
+
+  for (size_t i = 0; i < argc_sz; i++) {
+    nums[i] = aton(argv[i + 1]);
   }
-  size_t new_size = remove_duplicates(&nums, argc - 1);
+  size_t unique_size = remove_duplicates(nums, argc_sz);
 
   clock_gettime(CLOCK_MONOTONIC, &mid);
-  char* res = formula(nums, new_size);
+  out_len = formula_math(out_buffer, nums, unique_size);
   clock_gettime(CLOCK_MONOTONIC, &end);
+#endif
 
 #if defined(MEASURE_TIME_ENABLED)
   double duration =
@@ -213,12 +356,19 @@ int main(int argc, char** argv) {
   duration /= 1000.0;
   dur1 /= 1000.0;
   dur2 /= 1000.0;
-  printf("duration:%.3fus\nparse:%.3fus\nformula:%.3fus\n", duration, dur1,
+
+#if defined(ABSTRACT_ENABLED)
+  // Добавлен суффикс us (микросекунды) для скрипта Python
+  printf("elapsed:%.3fus\ncopy:%.3fus\nformula:%.3fus\n", duration, dur1, dur2);
+#else
+  // Добавлен суффикс us (микросекунды) для скрипта Python
+  printf("elapsed:%.3fus\nparse:%.3fus\nformula:%.3fus\n", duration, dur1,
          dur2);
 #endif
+#endif
 
-  printf("%s\n", res);
-  free(nums);
-  free(res);
+  // Быстрый прямой сброс в stdout минуя printf
+  fwrite(out_buffer, 1, out_len, stdout);
+
   return 0;
 }
